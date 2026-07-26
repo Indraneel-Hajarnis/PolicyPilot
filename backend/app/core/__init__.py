@@ -1,1 +1,1 @@
-# PolicyPilot Core Module
+"""Core utilities for PolicyPilot."""

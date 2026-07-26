@@ -1,1 +1,1 @@
-# PolicyPilot DB Module
+"""Database package for PolicyPilot."""

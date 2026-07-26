@@ -1,1 +1,1 @@
-# PolicyPilot Backend App
+"""PolicyPilot backend application package."""

@@ -1,1 +1,1 @@
-# PolicyPilot API Module
+"""API package for PolicyPilot."""

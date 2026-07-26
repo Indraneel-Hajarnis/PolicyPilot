@@ -1,1 +1,1 @@
-# PolicyPilot Prompts Module
+"""Prompt helpers for PolicyPilot."""
