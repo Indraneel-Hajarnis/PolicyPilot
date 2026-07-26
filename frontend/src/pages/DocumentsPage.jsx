@@ -4,10 +4,12 @@ import { FileText, Trash2, Eye, Calendar, HardDrive, Layers, Globe, Plus, Search
 import { deleteDocument } from '../api/client';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function DocumentsPage() {
   const { documents, refreshDocuments } = useAppContext();
   const { t } = useLanguage();
+  const toast = useToast();
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [languageFilter, setLanguageFilter] = useState('all');
@@ -16,18 +18,22 @@ export default function DocumentsPage() {
     refreshDocuments();
   }, [refreshDocuments]);
 
-  const handleDelete = async (id, e) => {
+  const handleDelete = async (id, name, e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this document and remove its embeddings from FAISS?')) return;
+
+    // Custom confirmation via toast — show a temporary warning
+    const confirmed = window.confirm(`Delete "${name}"? This will remove it from FAISS.`);
+    if (!confirmed) return;
 
     setDeletingId(id);
     try {
       await deleteDocument(id);
       refreshDocuments();
+      toast.success(`"${name}" deleted successfully.`);
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Failed to delete document');
+      toast.error('Failed to delete document. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -43,7 +49,8 @@ export default function DocumentsPage() {
 
   // Filter logic
   const filteredDocuments = documents.filter((doc) => {
-    const matchesSearch = doc.original_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const name = doc.original_name || doc.filename || '';
+    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
     const docLang = (doc.language || 'en').toLowerCase();
     const matchesLang = languageFilter === 'all' || docLang === languageFilter;
     return matchesSearch && matchesLang;
@@ -138,9 +145,9 @@ export default function DocumentsPage() {
 
                   <div>
                     <h3 className="text-base font-bold text-white group-hover:text-teal-300 transition-colors line-clamp-2">
-                      {doc.original_name}
+                      {doc.original_name || doc.filename}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1 font-mono">{doc.filename.substring(0, 24)}...</p>
+                    <p className="text-xs text-slate-500 mt-1 font-mono">{(doc.filename || '').substring(0, 24)}{(doc.filename||'').length > 24 ? '...' : ''}</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 pt-3 border-t border-slate-800">
@@ -158,7 +165,7 @@ export default function DocumentsPage() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                      <span>{new Date(doc.upload_date).toLocaleDateString()}</span>
+                      <span>{new Date(doc.uploaded_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
@@ -172,7 +179,7 @@ export default function DocumentsPage() {
                     <Eye className="w-3.5 h-3.5" /> View Details
                   </Link>
                   <button
-                    onClick={(e) => handleDelete(doc.id, e)}
+                    onClick={(e) => handleDelete(doc.id, doc.original_name || doc.filename, e)}
                     disabled={deletingId === doc.id}
                     className="p-2.5 rounded-xl border border-slate-800 text-slate-500 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition-all"
                     title={t('deleteDoc')}

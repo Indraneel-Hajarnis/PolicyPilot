@@ -1,4 +1,6 @@
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -19,3 +21,13 @@ def get_document(document_id: int, db: Session = Depends(get_db)):
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     return document
+
+
+@router.delete("/{document_id}")
+def delete_document(document_id: int, db: Session = Depends(get_db)):
+    document = db.query(DocumentRecord).filter(DocumentRecord.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    db.delete(document)
+    db.commit()
+    return {"message": "Document deleted successfully", "id": document_id}

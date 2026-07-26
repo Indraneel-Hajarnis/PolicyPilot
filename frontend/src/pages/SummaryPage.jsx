@@ -46,7 +46,7 @@ export default function SummaryPage() {
       {/* Header */}
       <div className="space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-xs font-bold text-teal-300 shadow-sm">
-          <Sparkles className="w-4 h-4 text-teal-400 animate-pulse" /> Structured Tri-Lingual Executive Summarizer
+          <Sparkles className="w-4 h-4 text-teal-400 animate-pulse" /> Multi-Language Policy Summarizer
         </div>
         <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">{t('summaryTitle')}</h1>
         <p className="section-subtitle text-slate-400 max-w-3xl">
@@ -75,7 +75,7 @@ export default function SummaryPage() {
               </option>
               {documents.map((doc) => (
                 <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">
-                  {doc.original_name} ({doc.page_count} pages)
+                  {doc.original_name || doc.filename}{doc.page_count ? ` (${doc.page_count} pages)` : ''}
                 </option>
               ))}
             </select>
