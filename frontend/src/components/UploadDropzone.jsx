@@ -23,7 +23,7 @@ export default function UploadDropzone({ onUploadSuccess }) {
         const res = await uploadDocument(file, (percent) => {
           setProgress(percent);
         });
-        setSuccessFile(res.original_name);
+        setSuccessFile(res.filename);
         if (onUploadSuccess) onUploadSuccess(res);
       } catch (err) {
         console.error('Upload error:', err);

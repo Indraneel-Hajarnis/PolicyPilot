@@ -1,4 +1,6 @@
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_health import router as health_router
@@ -19,11 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health_router)
-app.include_router(upload_router)
-app.include_router(query_router)
-app.include_router(summary_router)
-app.include_router(documents_router)
+app.include_router(health_router, prefix="/api")
+app.include_router(upload_router, prefix="/api")
+app.include_router(query_router, prefix="/api")
+app.include_router(summary_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
 
 init_db()
 
