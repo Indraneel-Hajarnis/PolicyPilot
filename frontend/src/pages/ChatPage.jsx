@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Bot, Trash2, Filter, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, Bot, Trash2, Filter, Loader2, Sparkles, Volume2, Mic } from 'lucide-react';
 import useChat from '../hooks/useChat';
 import ChatBubble from '../components/ChatBubble';
 import LanguageSelector from '../components/LanguageSelector';
 import RelatedDocsList from '../components/RelatedDocsList';
+import VoiceInputButton from '../components/VoiceInputButton';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -26,9 +27,12 @@ export default function ChatPage() {
     setInputQuestion('');
   };
 
+  const handleSpeechInput = (transcript) => {
+    setInputQuestion(transcript);
+  };
+
   const latestAiMessage = [...messages].reverse().find((m) => m.role === 'assistant');
 
-  // Sample prompts tailored for current language
   const samplePrompts = [
     t('sampleQ1'),
     t('sampleQ2'),
@@ -37,11 +41,11 @@ export default function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-hidden bg-slate-950">
-      {/* Sidebar - Filter & History */}
+      {/* Sidebar - Scope & Settings */}
       <div className="w-full md:w-80 bg-slate-900/80 border-b md:border-b-0 md:border-r border-slate-800 p-4 space-y-5 flex shrink-0 flex-col overflow-y-auto backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-teal-400" /> Filter & Scope
+            <Filter className="w-4 h-4 text-teal-400" /> Policy Scope
           </h2>
           {messages.length > 0 && (
             <button
@@ -55,18 +59,18 @@ export default function ChatPage() {
 
         {/* Target Document Scope */}
         <div className="space-y-1.5">
-          <label className="text-xs text-slate-400 font-medium">Search Target Scope</label>
+          <label className="text-xs text-slate-400 font-medium">Policy Selection</label>
           <select
             value={selectedDocId}
             onChange={(e) => setSelectedDocId(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
+            className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
           >
             <option value="" className="bg-slate-900 text-white">
-              All Indexed Policies ({documents.length})
+              All Policy Documents ({documents.length})
             </option>
             {documents.map((doc) => (
               <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">
-                {doc.original_name}
+                {doc.original_name || doc.filename}
               </option>
             ))}
           </select>
@@ -126,7 +130,7 @@ export default function ChatPage() {
               {isLoading && (
                 <div className="flex gap-3 items-center text-teal-300 text-xs p-4 rounded-xl bg-slate-900 border border-teal-500/40 max-w-xs animate-pulse shadow-xl">
                   <Loader2 className="w-4 h-4 animate-spin text-teal-400 shrink-0" />
-                  <span>Searching index & synthesizing tri-lingual response...</span>
+                  <span>Analyzing policy documents & preparing response...</span>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -134,9 +138,11 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input Bar */}
+        {/* Input Bar with Voice Button */}
         <div className="p-4 border-t border-slate-800 bg-slate-900/95 backdrop-blur-xl">
-          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex items-center gap-3">
+          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex items-center gap-2 sm:gap-3">
+            <VoiceInputButton onSpeechInput={handleSpeechInput} disabled={isLoading} />
+            
             <input
               type="text"
               value={inputQuestion}

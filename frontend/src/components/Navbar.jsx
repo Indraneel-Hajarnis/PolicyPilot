@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { ShieldCheck, UploadCloud, MessageSquareText, FileText, Library, BarChart3, Menu, X, Activity } from 'lucide-react';
+import { ShieldCheck, UploadCloud, MessageSquareText, FileText, Library, BarChart3, Menu, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from './LanguageSelector';
 
@@ -32,7 +32,7 @@ export default function Navbar() {
                 </span>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-300 bg-teal-500/10 border border-teal-500/30 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping" />
-                  Tri-Lingual RAG
+                  Multi-Language
                 </span>
               </div>
             </div>
@@ -61,13 +61,9 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Controls: Language Selector & Status */}
+          {/* Controls: Language Selector */}
           <div className="hidden md:flex items-center gap-3">
             <LanguageSelector />
-            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full text-emerald-400 text-xs font-medium">
-              <Activity className="w-3.5 h-3.5 animate-pulse" />
-              <span>{t('serverOnline')}</span>
-            </div>
           </div>
 
           {/* Mobile menu button */}

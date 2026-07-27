@@ -27,7 +27,18 @@ export default function UploadDropzone({ onUploadSuccess }) {
         if (onUploadSuccess) onUploadSuccess(res);
       } catch (err) {
         console.error('Upload error:', err);
-        setError(err.response?.data?.error || 'Failed to process document. Please check PDF validity.');
+        const data = err.response?.data;
+        let msg = null;
+        if (typeof data?.detail === 'string') {
+          msg = data.detail;
+        } else if (Array.isArray(data?.detail) && data.detail[0]?.msg) {
+          msg = data.detail[0].msg;
+        } else if (typeof data?.error === 'string') {
+          msg = data.error;
+        } else if (err.message) {
+          msg = err.message;
+        }
+        setError(msg || 'Failed to process document. Please check PDF validity.');
       } finally {
         setUploading(false);
       }
@@ -77,7 +88,7 @@ export default function UploadDropzone({ onUploadSuccess }) {
           {/* File format indicator */}
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
             <FileText className="w-3.5 h-3.5 text-teal-400" />
-            <span>PDF files supported (OCR & Text Extraction)</span>
+            <span>PDF Documents Supported</span>
           </div>
 
           {/* Progress bar */}
@@ -89,8 +100,8 @@ export default function UploadDropzone({ onUploadSuccess }) {
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-teal-300 font-mono">
-                Analyzing & Chunking Document... {progress}%
+              <p className="text-xs text-teal-300 font-medium">
+                Analyzing Policy Document... {progress}%
               </p>
             </div>
           )}
@@ -101,7 +112,7 @@ export default function UploadDropzone({ onUploadSuccess }) {
       {successFile && (
         <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3 text-emerald-300 text-sm animate-fade-in">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <span>Successfully indexed <strong>{successFile}</strong>! Ready for Q&A and summary.</span>
+          <span>Successfully processed <strong>{successFile}</strong>! Ready for Q&A and summary.</span>
         </div>
       )}
 
