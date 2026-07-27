@@ -2,8 +2,10 @@ import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, FileText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { uploadDocument } from '../api/client';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function UploadDropzone({ onUploadSuccess }) {
+  const { t } = useLanguage();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
@@ -38,12 +40,12 @@ export default function UploadDropzone({ onUploadSuccess }) {
         } else if (err.message) {
           msg = err.message;
         }
-        setError(msg || 'Failed to process document. Please check PDF validity.');
+        setError(msg || t('uploadProcessError'));
       } finally {
         setUploading(false);
       }
     },
-    [onUploadSuccess]
+    [onUploadSuccess, t]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -78,17 +80,17 @@ export default function UploadDropzone({ onUploadSuccess }) {
           {/* Text */}
           <div className="space-y-1">
             <h3 className="text-xl font-bold text-white">
-              {isDragActive ? 'Drop Policy PDF Here' : 'Upload Policy Document'}
+              {isDragActive ? t('uploadDropzoneDropHere') : t('uploadDropzoneTitle')}
             </h3>
             <p className="text-sm text-white/50 max-w-sm mx-auto">
-              Drag & drop your PDF file or click to browse. Max size 25MB.
+              {t('uploadDropzoneInstructions')}
             </p>
           </div>
 
           {/* File format indicator */}
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
             <FileText className="w-3.5 h-3.5 text-teal-400" />
-            <span>PDF Documents Supported</span>
+            <span>{t('uploadDropzonePdfSupported')}</span>
           </div>
 
           {/* Progress bar */}
@@ -101,7 +103,7 @@ export default function UploadDropzone({ onUploadSuccess }) {
                 />
               </div>
               <p className="text-xs text-teal-300 font-medium">
-                Analyzing Policy Document... {progress}%
+                {t('uploadAnalyzing').replace('{progress}', String(progress))}
               </p>
             </div>
           )}
@@ -112,7 +114,26 @@ export default function UploadDropzone({ onUploadSuccess }) {
       {successFile && (
         <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3 text-emerald-300 text-sm animate-fade-in">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <span>Successfully processed <strong>{successFile}</strong>! Ready for Q&A and summary.</span>
+          <span>
+            {(() => {
+              const msg = t('uploadSuccess');
+              if (msg.includes('{file}')) {
+                const parts = msg.split('{file}');
+                return (
+                  <>
+                    {parts[0]}
+                    <strong>{successFile}</strong>
+                    {parts[1]}
+                  </>
+                );
+              }
+              return (
+                <>
+                  {msg} <strong>{successFile}</strong>
+                </>
+              );
+            })()}
+          </span>
         </div>
       )}
 

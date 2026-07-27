@@ -32,7 +32,7 @@ export default function Navbar() {
                 </span>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-300 bg-teal-500/10 border border-teal-500/30 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping" />
-                  Multi-Language
+                  {t('multiLanguage')}
                 </span>
               </div>
             </div>

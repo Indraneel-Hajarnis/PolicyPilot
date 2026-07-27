@@ -28,7 +28,7 @@ export default function SummaryCard({ summary }) {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-slate-800">
         <div>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-500/10 text-teal-300 border border-teal-500/30">
-            Policy Executive Brief
+            {t('policyExecBrief')}
           </span>
           <h2 className="text-2xl font-extrabold text-white mt-2 leading-tight">{summary.title || summary.document_name}</h2>
           <p className="text-xs text-slate-400 mt-1 font-mono">{summary.document_name}</p>
@@ -46,7 +46,7 @@ export default function SummaryCard({ summary }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-xs font-semibold text-teal-300 border border-teal-500/30 transition-all"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : t('copyAnswer')}</span>
+            <span>{copied ? t('copied') : t('copyAnswer')}</span>
           </button>
         </div>
       </div>

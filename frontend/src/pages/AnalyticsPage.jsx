@@ -78,7 +78,7 @@ function LangBar({ label, count, total, color }) {
   );
 }
 
-function StatusPill({ label, status }) {
+function StatusPill({ label, status, t }) {
   const ok = status === 'ok';
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-slate-800 last:border-0">
@@ -92,7 +92,7 @@ function StatusPill({ label, status }) {
           ? <CheckCircle2 className="w-3 h-3" />
           : <AlertCircle className="w-3 h-3" />
         }
-        {ok ? 'Operational' : 'Degraded'}
+        {ok ? t('operational') : t('degraded')}
       </span>
     </div>
   );
@@ -118,7 +118,7 @@ export default function AnalyticsPage() {
       setLastRefresh(new Date());
     } catch (err) {
       console.error('Analytics load error:', err);
-      setError('Could not load analytics. Make sure the backend is running.');
+      setError(t('analyticsLoadError'));
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ export default function AnalyticsPage() {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-xs font-bold text-teal-300">
             <BarChart3 className="w-4 h-4" />
-            Real-Time Platform Insights
+            {t('analyticsInsights')}
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
             {t('analyticsTitle')}
@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
           className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shrink-0 disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('refreshBtn')}
         </button>
       </div>
 
@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
           icon={FileText}
           label={t('totalDocs')}
           value={stats?.document_count ?? '—'}
-          sub="Policy documents in system"
+          sub={t('docsInSystem')}
           color="teal"
           loading={loading}
         />
@@ -176,7 +176,7 @@ export default function AnalyticsPage() {
           icon={Layers}
           label={t('totalPages')}
           value={stats?.page_count ?? '—'}
-          sub="Document pages processed"
+          sub={t('pagesProcessed')}
           color="emerald"
           loading={loading}
         />
@@ -184,7 +184,7 @@ export default function AnalyticsPage() {
           icon={MessageSquare}
           label={t('queryCount')}
           value={stats?.query_count ?? '—'}
-          sub="Q&A queries answered"
+          sub={t('queriesAnswered')}
           color="indigo"
           loading={loading}
         />
@@ -192,7 +192,7 @@ export default function AnalyticsPage() {
           icon={HardDrive}
           label={t('totalSize')}
           value={stats ? formatBytes(stats.total_size_bytes) : '—'}
-          sub="Total storage consumed"
+          sub={t('storageConsumed')}
           color="amber"
           loading={loading}
         />
@@ -241,7 +241,7 @@ export default function AnalyticsPage() {
 
           {!loading && totalLang === 0 && (
             <p className="text-xs text-slate-500 text-center pt-2">
-              No documents uploaded yet. Upload PDFs to see language distribution.
+              {t('noDocsUploaded')}
             </p>
           )}
         </div>
@@ -252,14 +252,14 @@ export default function AnalyticsPage() {
             <Shield className="w-5 h-5 text-emerald-400" />
             <h2 className="text-base font-bold text-white">{t('systemStatus')}</h2>
           </div>
-          <StatusPill label="API Server" status="ok" />
-          <StatusPill label="Database Storage" status="ok" />
-          <StatusPill label="Search Index" status="ok" />
-          <StatusPill label="Multi-Language Engine" status="ok" />
-          <StatusPill label="Document Parser" status="ok" />
+          <StatusPill label={t('apiServer')} status="ok" t={t} />
+          <StatusPill label={t('dbStorage')} status="ok" t={t} />
+          <StatusPill label={t('searchIndexTitle')} status="ok" t={t} />
+          <StatusPill label={t('multiLangEngineStatus')} status="ok" t={t} />
+          <StatusPill label={t('docParser')} status="ok" t={t} />
           <div className="flex items-center gap-1.5 text-[10px] text-slate-600 pt-3 border-t border-slate-800 mt-2">
             <Clock className="w-3 h-3" />
-            Last updated: {lastRefresh.toLocaleTimeString()}
+            {t('lastUpdated')}: {lastRefresh.toLocaleTimeString()}
           </div>
         </div>
       </div>
@@ -271,10 +271,10 @@ export default function AnalyticsPage() {
             <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
               <Zap className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-white">Smart Search Index</h3>
+            <h3 className="text-sm font-bold text-white">{t('smartSearchIdx')}</h3>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            High-speed similarity search for retrieving relevant policy clauses instantly across thousands of pages.
+            {t('smartSearchDesc')}
           </p>
         </div>
 
@@ -283,10 +283,10 @@ export default function AnalyticsPage() {
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Activity className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-white">Multi-Language Engine</h3>
+            <h3 className="text-sm font-bold text-white">{t('multiLangEngine')}</h3>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Multilingual semantic processing supporting English, Hindi (हिन्दी), and Marathi (मराठी).
+            {t('multiLangDesc')}
           </p>
         </div>
 
@@ -295,10 +295,10 @@ export default function AnalyticsPage() {
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
               <MessageSquare className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-white">AI Analysis Engine</h3>
+            <h3 className="text-sm font-bold text-white">{t('aiAnalysis')}</h3>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Delivers rapid Q&A responses and structured executive summaries with verifiable document citations.
+            {t('aiAnalysisDesc')}
           </p>
         </div>
       </div>
@@ -321,7 +321,7 @@ export default function AnalyticsPage() {
             <MessageSquare className="w-10 h-10 text-slate-700 mx-auto" />
             <p className="text-sm text-slate-500">{t('noActivity')}</p>
             <p className="text-xs text-slate-600">
-              Ask questions via the Chat interface and they will appear here.
+              {t('askViaChat')}
             </p>
           </div>
         ) : (

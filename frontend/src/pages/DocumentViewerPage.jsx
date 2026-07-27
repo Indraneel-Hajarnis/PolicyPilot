@@ -3,10 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileText, ArrowLeft, MessageSquare, FileSearch, Layers, HardDrive, Globe, Calendar, Loader2, AlertCircle } from 'lucide-react';
 import { getDocument, getSummary } from '../api/client';
 import SummaryCard from '../components/SummaryCard';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DocumentViewerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,14 +23,14 @@ export default function DocumentViewerPage() {
         setDoc(data);
       } catch (err) {
         console.error('Fetch doc error:', err);
-        setError('Document not found or failed to load.');
+        setError(t('docNotFoundLoad'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchDoc();
-  }, [id]);
+  }, [id, t]);
 
   const handleFetchSummary = async () => {
     try {
@@ -62,11 +64,11 @@ export default function DocumentViewerPage() {
     return (
       <div className="page-container space-y-4">
         <button onClick={() => navigate('/documents')} className="btn-ghost flex items-center gap-2 text-xs">
-          <ArrowLeft className="w-4 h-4" /> Back to Documents
+          <ArrowLeft className="w-4 h-4" /> {t('backToDocs')}
         </button>
         <div className="p-6 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3 text-rose-300">
           <AlertCircle className="w-6 h-6 shrink-0" />
-          <span>{error || 'Document not found'}</span>
+          <span>{error || t('docNotFound')}</span>
         </div>
       </div>
     );
@@ -76,20 +78,20 @@ export default function DocumentViewerPage() {
     <div className="page-container space-y-8 animate-fade-in">
       {/* Back Button */}
       <button onClick={() => navigate('/documents')} className="btn-ghost inline-flex items-center gap-2 text-xs">
-        <ArrowLeft className="w-4 h-4" /> Back to Documents List
+        <ArrowLeft className="w-4 h-4" /> {t('backToDocsList')}
       </button>
 
       {/* Header Info */}
       <div className="glass-card p-6 sm:p-8 border-teal-500/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-xs font-semibold text-teal-300">
-            <FileText className="w-3.5 h-3.5" /> Policy Document ID #{doc.id}
+            <FileText className="w-3.5 h-3.5" /> {t('policyDocId')}{doc.id}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white">{doc.original_name}</h1>
           <div className="flex flex-wrap gap-4 text-xs text-white/60 pt-1">
             <div className="flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-teal-400" />
-              <span>{doc.page_count} Pages ({doc.chunk_count} Chunks)</span>
+              <span>{doc.page_count} {t('pagesLabel')} ({doc.chunk_count} {t('chunks')})</span>
             </div>
             <div className="flex items-center gap-1.5">
               <HardDrive className="w-4 h-4 text-teal-400" />
@@ -97,11 +99,11 @@ export default function DocumentViewerPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <Globe className="w-4 h-4 text-teal-400" />
-              <span>Language: {doc.language.toUpperCase()}</span>
+              <span>{t('languagePrefix')}: {doc.language.toUpperCase()}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-teal-400" />
-              <span>Uploaded {new Date(doc.upload_date).toLocaleString()}</span>
+              <span>{t('uploadedPrefix')} {new Date(doc.upload_date).toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -112,7 +114,7 @@ export default function DocumentViewerPage() {
             to="/chat"
             className="btn-primary flex items-center justify-center gap-2 text-xs"
           >
-            <MessageSquare className="w-4 h-4" /> Ask Questions in Chat
+            <MessageSquare className="w-4 h-4" /> {t('askQuestionsChat')}
           </Link>
           <button
             onClick={handleFetchSummary}
@@ -120,7 +122,7 @@ export default function DocumentViewerPage() {
             className="btn-secondary flex items-center justify-center gap-2 text-xs"
           >
             {loadingSummary ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSearch className="w-4 h-4" />}
-            <span>{summary ? 'Refresh Summary' : 'Generate Summary'}</span>
+            <span>{summary ? t('refreshSummaryBtn') : t('generateSummaryBtnLabel')}</span>
           </button>
         </div>
       </div>

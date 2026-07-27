@@ -23,10 +23,9 @@ export default function UploadPage() {
   const handleUploadSuccess = (doc) => {
     refreshDocuments();
     setUploadedDoc(doc);
-    toast.success(
-      `"${doc.original_name || doc.filename}" processed successfully! ${doc.page_count ? `(${doc.page_count} pages)` : ''}`,
-      { duration: 5000 }
-    );
+    const pages = doc.page_count ? `(${doc.page_count} ${t('pagesLabel')})` : '';
+    const msg = t('uploadToastSuccess').replace('{file}', doc.original_name || doc.filename).replace('{pages}', pages);
+    toast.success(msg, { duration: 5000 });
   };
 
   const features = [
@@ -62,7 +61,7 @@ export default function UploadPage() {
       <div className="text-center space-y-5 max-w-4xl mx-auto pt-6">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/30 text-xs font-bold text-teal-300 shadow-sm">
           <Sparkles className="w-4 h-4 text-teal-400 animate-pulse" />
-          <span>Smart Multi-Language Policy Intelligence (EN / HI / MR)</span>
+          <span>{t('heroBadge')}</span>
         </div>
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
           {t('uploadTitle')}
@@ -87,11 +86,11 @@ export default function UploadPage() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">
-                  {documents.length} Policy {documents.length === 1 ? 'Document' : 'Documents'} Ready
+                  {documents.length === 1
+                    ? t('docsReadySingle').replace('{count}', String(documents.length))
+                    : t('docsReadyPlural').replace('{count}', String(documents.length))}
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Policy documents processed — ready for multi-language Q&amp;A and AI summaries.
-                </p>
+                <p className="text-xs text-slate-400">{t('docsReadySubtitle')}</p>
               </div>
             </div>
             <div className="flex gap-3 w-full sm:w-auto shrink-0">
@@ -118,14 +117,14 @@ export default function UploadPage() {
         <div className="text-center mb-8 space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300">
             <Zap className="w-3.5 h-3.5 text-amber-400" />
-            How PolicyPilot Works
+            {t('howItWorks')}
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { step: '01', title: 'Upload & Read', desc: 'Document text is analyzed and language is auto-detected (EN/HI/MR).' },
-            { step: '02', title: 'Smart Indexing', desc: 'Text content is structured into search segments for instant retrieval.' },
-            { step: '03', title: 'Instant Q&A', desc: 'Ask questions and receive precise answers with verified document citations.' },
+            { step: '01', title: t('step1Title'), desc: t('step1Desc') },
+            { step: '02', title: t('step2Title'), desc: t('step2Desc') },
+            { step: '03', title: t('step3Title'), desc: t('step3Desc') },
           ].map(({ step, title, desc }) => (
             <div key={step} className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-2 hover:border-slate-700 transition-all">
               <span className="text-2xl font-black text-teal-500/40 font-mono">{step}</span>
@@ -138,7 +137,7 @@ export default function UploadPage() {
 
       {/* ── Feature Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-        {features.map(({ icon: Icon, color, title, desc }) => {
+        {features.map(({ icon: Icon, color, title, desc }, idx) => {
           const c = colorMap[color];
           return (
             <div
@@ -148,8 +147,8 @@ export default function UploadPage() {
               <div className={`w-10 h-10 rounded-xl ${c.bg} border ${c.border} flex items-center justify-center ${c.icon}`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-white">{title}</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{desc}</p>
+              <h3 className="text-base font-bold text-white">{t(`feature${idx+1}Title`)}</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">{t(`feature${idx+1}Desc`)}</p>
             </div>
           );
         })}

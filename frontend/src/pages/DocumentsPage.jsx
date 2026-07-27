@@ -23,17 +23,17 @@ export default function DocumentsPage() {
     e.stopPropagation();
 
     // Custom confirmation via toast — show a temporary warning
-    const confirmed = window.confirm(`Delete "${name}"? This will remove it from FAISS.`);
+    const confirmed = window.confirm(t('deleteConfirm').replace('{name}', name));
     if (!confirmed) return;
 
     setDeletingId(id);
     try {
       await deleteDocument(id);
       refreshDocuments();
-      toast.success(`"${name}" deleted successfully.`);
+      toast.success(t('deleteSuccessText').replace('{name}', name));
     } catch (err) {
       console.error('Delete error:', err);
-      toast.error('Failed to delete document. Please try again.');
+      toast.error(t('deleteFailed'));
     } finally {
       setDeletingId(null);
     }
@@ -115,7 +115,7 @@ export default function DocumentsPage() {
           <FileText className="w-12 h-12 text-slate-600 mx-auto" />
           <h3 className="text-lg font-bold text-white">{t('noDocs')}</h3>
           <p className="text-xs text-slate-400">
-            Upload your policy PDFs to extract chunks, generate vector embeddings, and enable tri-lingual search.
+            {t('uploadPdfPrompt')}
           </p>
           <Link
             to="/"
@@ -153,7 +153,7 @@ export default function DocumentsPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 pt-3 border-t border-slate-800">
                     <div className="flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-teal-400" />
-                      <span>{doc.page_count} Pages</span>
+                      <span>{doc.page_count} {t('pagesLabel')}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <HardDrive className="w-3.5 h-3.5 text-teal-400" />
@@ -176,7 +176,7 @@ export default function DocumentsPage() {
                     to={`/documents/${doc.id}`}
                     className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-xl text-xs font-semibold text-center flex items-center justify-center gap-1.5 border border-slate-700 transition-all"
                   >
-                    <Eye className="w-3.5 h-3.5" /> View Details
+                    <Eye className="w-3.5 h-3.5" /> {t('viewDetailsBtn')}
                   </Link>
                   <button
                     onClick={(e) => handleDelete(doc.id, doc.original_name || doc.filename, e)}

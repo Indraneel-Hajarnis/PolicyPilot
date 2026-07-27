@@ -73,7 +73,7 @@ export default function ChatBubble({ message }) {
           {!isUser && (
             <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-700/60">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-400 flex items-center gap-1.5">
-                <Bot className="w-3.5 h-3.5" /> Policy Assistant
+                <Bot className="w-3.5 h-3.5" /> {t('policyAssistant')}
               </span>
               <div className="flex items-center gap-2">
                 {message.confidence !== undefined && (
@@ -109,7 +109,7 @@ export default function ChatBubble({ message }) {
                     className={`p-1 rounded-lg transition-colors ${
                       feedback === 'up' ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-slate-300'
                     }`}
-                    title="Helpful response"
+                    title={t('helpfulResponse')}
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
                   </button>
@@ -118,7 +118,7 @@ export default function ChatBubble({ message }) {
                     className={`p-1 rounded-lg transition-colors ${
                       feedback === 'down' ? 'text-rose-400 bg-rose-500/10' : 'text-slate-500 hover:text-slate-300'
                     }`}
-                    title="Needs improvement"
+                    title={t('needsImprovement')}
                   >
                     <ThumbsDown className="w-3.5 h-3.5" />
                   </button>
