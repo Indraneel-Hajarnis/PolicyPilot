@@ -3,7 +3,7 @@ import { Mic, MicOff } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function VoiceInputButton({ onSpeechInput, disabled }) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState(null);
 
@@ -37,7 +37,7 @@ export default function VoiceInputButton({ onSpeechInput, disabled }) {
 
   const toggleListening = () => {
     if (!recognition) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      alert(t('speechNotSupported'));
       return;
     }
 
@@ -67,7 +67,7 @@ export default function VoiceInputButton({ onSpeechInput, disabled }) {
       type="button"
       onClick={toggleListening}
       disabled={disabled}
-      title={isListening ? 'Listening... Click to stop' : 'Click to speak question aloud'}
+      title={isListening ? t('listeningStop') : t('clickToSpeak')}
       className={`p-3 rounded-xl flex items-center justify-center transition-all shadow-md ${
         isListening
           ? 'bg-rose-500 text-white animate-pulse shadow-rose-500/30'

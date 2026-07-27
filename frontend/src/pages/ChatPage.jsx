@@ -45,7 +45,7 @@ export default function ChatPage() {
       <div className="w-full md:w-80 bg-slate-900/80 border-b md:border-b-0 md:border-r border-slate-800 p-4 space-y-5 flex shrink-0 flex-col overflow-y-auto backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-teal-400" /> Policy Scope
+            <Filter className="w-4 h-4 text-teal-400" /> {t('policyScope')}
           </h2>
           {messages.length > 0 && (
             <button
@@ -59,14 +59,14 @@ export default function ChatPage() {
 
         {/* Target Document Scope */}
         <div className="space-y-1.5">
-          <label className="text-xs text-slate-400 font-medium">Policy Selection</label>
+          <label className="text-xs text-slate-400 font-medium">{t('policySelection')}</label>
           <select
             value={selectedDocId}
             onChange={(e) => setSelectedDocId(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
           >
             <option value="" className="bg-slate-900 text-white">
-              All Policy Documents ({documents.length})
+              {t('allPolicyDocs')} ({documents.length})
             </option>
             {documents.map((doc) => (
               <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">
@@ -130,7 +130,7 @@ export default function ChatPage() {
               {isLoading && (
                 <div className="flex gap-3 items-center text-teal-300 text-xs p-4 rounded-xl bg-slate-900 border border-teal-500/40 max-w-xs animate-pulse shadow-xl">
                   <Loader2 className="w-4 h-4 animate-spin text-teal-400 shrink-0" />
-                  <span>Analyzing policy documents & preparing response...</span>
+                  <span>{t('analyzingDocs')}</span>
                 </div>
               )}
               <div ref={messagesEndRef} />

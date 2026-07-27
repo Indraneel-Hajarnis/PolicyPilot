@@ -28,7 +28,7 @@ export default function SummaryPage() {
       setSummary(data);
     } catch (err) {
       console.error('Summary generation error:', err);
-      setError(err.response?.data?.error || 'Failed to generate summary.');
+      setError(err.response?.data?.error || t('genSummaryFailed'));
     } finally {
       setLoading(false);
     }
@@ -46,7 +46,7 @@ export default function SummaryPage() {
       {/* Header */}
       <div className="space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-xs font-bold text-teal-300 shadow-sm">
-          <Sparkles className="w-4 h-4 text-teal-400 animate-pulse" /> Multi-Language Policy Summarizer
+          <Sparkles className="w-4 h-4 text-teal-400 animate-pulse" /> {t('multiLangSummarizer')}
         </div>
         <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">{t('summaryTitle')}</h1>
         <p className="section-subtitle text-slate-400 max-w-3xl">
@@ -71,11 +71,11 @@ export default function SummaryPage() {
               className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-teal-400 transition-all shadow-inner"
             >
               <option value="" className="bg-slate-900 text-white">
-                -- Select a document ({documents.length} available) --
+                {t('selectDocPlaceholder')} ({documents.length} {t('available')}) --
               </option>
               {documents.map((doc) => (
                 <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">
-                  {doc.original_name || doc.filename}{doc.page_count ? ` (${doc.page_count} pages)` : ''}
+                  {doc.original_name || doc.filename}{doc.page_count ? ` (${doc.page_count} ${t('pagesLabel')})` : ''}
                 </option>
               ))}
             </select>
@@ -105,9 +105,9 @@ export default function SummaryPage() {
         <div className="bg-slate-900/80 border border-teal-500/30 rounded-2xl p-12 text-center space-y-4 animate-pulse shadow-2xl max-w-3xl">
           <Loader2 className="w-10 h-10 animate-spin text-teal-400 mx-auto" />
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-white">Generating Tri-Lingual Summary...</h3>
+            <h3 className="text-lg font-bold text-white">{t('generatingSummary')}</h3>
             <p className="text-xs text-slate-400">
-              Extracting key policy points, section briefs, dates, and compliance steps...
+              {t('extractingPoints')}
             </p>
           </div>
         </div>
