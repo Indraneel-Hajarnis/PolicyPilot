@@ -37,3 +37,10 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+backend/data/faiss_index/
+backend/data/policypilot.db
+backend/data/uploads/
+backend/app/api/__pycache__/*.pyc
+backend/data/faiss_index/index.faiss
+backend/data/policypilot.db

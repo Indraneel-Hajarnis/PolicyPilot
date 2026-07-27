@@ -134,19 +134,32 @@ export default function ChatBubble({ message }) {
         </div>
 
         {/* Sources section if present */}
-        {!isUser && message.sources && message.sources.length > 0 && (
-          <div className="space-y-2 pt-1 pl-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-              <BookOpen className="w-3.5 h-3.5 text-teal-400" />
-              <span>{t('sourcesHeading')} ({message.sources.length})</span>
+        {!isUser && message.sources && message.sources.length > 0 && (() => {
+          // Deduplicate by chunk_index, keep highest score, sort desc, cap at 3
+          const seen = new Map();
+          for (const src of message.sources) {
+            const key = src.chunk_index ?? src.text;
+            if (!seen.has(key) || src.score > seen.get(key).score) {
+              seen.set(key, src);
+            }
+          }
+          const dedupedSources = [...seen.values()]
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+            .slice(0, 3);
+          return (
+            <div className="space-y-2 pt-1 pl-1">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                <BookOpen className="w-3.5 h-3.5 text-teal-400" />
+                <span>{t('sourcesHeading')} ({dedupedSources.length})</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {dedupedSources.map((src, i) => (
+                  <SourceCitation key={i} source={src} index={i} />
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-2">
-              {message.sources.map((src, i) => (
-                <SourceCitation key={i} source={src} />
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

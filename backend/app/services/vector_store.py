@@ -1,6 +1,7 @@
 from pathlib import Path
 import pickle
 
+# pyrefly: ignore [missing-import]
 import faiss
 import numpy as np
 
@@ -12,6 +13,9 @@ class VectorStore:
         self.index_file = self.index_path / "index.faiss"
         self.id_map_file = self.index_path / "id_map.pkl"
         self.index = None
+        # id_map is now a list of dicts: {"doc_id": int, "chunk_index": int, "text": str}
+        # (previously this was a truncated "doc_id::i::chunk[:100]" string, which both
+        # lost most of the chunk text and made document filtering unreliable)
         self.id_map = []
         self._load()
 
@@ -23,22 +27,48 @@ class VectorStore:
         else:
             self.index = faiss.IndexFlatL2(384)
 
-    def add(self, embeddings, ids):
+    def add(self, embeddings, metadatas):
+        """metadatas: list of dicts {"doc_id": int, "chunk_index": int, "text": str}"""
         if self.index is None:
             self.index = faiss.IndexFlatL2(384)
         vectors = np.array(embeddings, dtype="float32")
         self.index.add(vectors)
-        self.id_map.extend(ids)
+        self.id_map.extend(metadatas)
         self._save()
 
-    def search(self, embedding, top_k=5):
+    def search(self, embedding, top_k=5, document_id=None):
+        """
+        Search the index.
+
+        IndexFlatL2 has no native metadata filtering, so a plain top_k search
+        is done globally across ALL documents' chunks. If document_id is
+        provided, we over-fetch (search the whole index) and filter down to
+        that document AFTER retrieval, then truncate to top_k. Without this,
+        scoping to one document could return zero results whenever that
+        document's real matches weren't already inside a small global top_k.
+        """
+        if self.index is None or self.index.ntotal == 0:
+            return []
+
         vector = np.array([embedding], dtype="float32")
-        distances, indices = self.index.search(vector, min(top_k, self.index.ntotal))
+        fetch_k = self.index.ntotal if document_id else min(top_k, self.index.ntotal)
+
+        distances, indices = self.index.search(vector, fetch_k)
         results = []
         for idx, dist in zip(indices[0], distances[0]):
             if idx < 0:
                 continue
-            results.append({"id": self.id_map[int(idx)], "distance": float(dist)})
+            meta = self.id_map[int(idx)]
+            if document_id and meta.get("doc_id") != document_id:
+                continue
+            results.append({
+                "doc_id": meta.get("doc_id"),
+                "chunk_index": meta.get("chunk_index"),
+                "text": meta.get("text"),
+                "distance": float(dist),
+            })
+            if len(results) >= top_k:
+                break
         return results
 
     def _save(self):

@@ -72,8 +72,14 @@ def index_document(text: str, doc_id: int) -> int:
             return 0
 
         embeddings = embedder.embed(chunks)
-        ids = [f"{doc_id}::{i}::{chunk[:100]}" for i, chunk in enumerate(chunks)]
-        vs.add(embeddings, ids)
+        # Store full chunk text + doc_id/chunk_index as real metadata instead of
+        # packing a truncated "doc_id::i::chunk[:100]" string (which threw away
+        # everything past the first 100 characters of every chunk).
+        metadatas = [
+            {"doc_id": doc_id, "chunk_index": i, "text": chunk}
+            for i, chunk in enumerate(chunks)
+        ]
+        vs.add(embeddings, metadatas)
         logger.info("Indexed %d chunks for doc_id=%d", len(chunks), doc_id)
         return len(chunks)
     except Exception as exc:
@@ -100,20 +106,18 @@ def answer_question(
     if embedder and vs and vs.index and vs.index.ntotal > 0:
         try:
             q_emb = embedder.embed([question])[0]
-            hits = vs.search(q_emb, top_k=6)
+            # document_id is passed straight into the vector store so filtering
+            # happens against the FULL candidate pool, not just a fixed top-6
+            # global search that could exclude this document entirely.
+            hits = vs.search(q_emb, top_k=6, document_id=document_id)
             for hit in hits:
-                parts = hit["id"].split("::", 2)
-                src_doc = int(parts[0]) if len(parts) >= 1 and parts[0].isdigit() else None
-                chunk_text = parts[2] if len(parts) == 3 else hit["id"]
-                # Filter by document if requested
-                if document_id and src_doc and src_doc != document_id:
-                    continue
                 sim = round(1.0 / (1.0 + hit["distance"]), 3)
                 sources.append({
-                    "text": chunk_text,
-                    "document_id": src_doc,
+                    "text": hit["text"],
+                    "document_id": hit["doc_id"],
+                    "chunk_index": hit.get("chunk_index"),
                     "score": sim,
-                    "page": None,
+                    "page": None,  # page-level tracking not yet implemented
                 })
             context = "\n\n---\n\n".join(s["text"] for s in sources[:4])
             if sources:

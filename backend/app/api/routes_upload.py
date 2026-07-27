@@ -23,9 +23,21 @@ def _background_index(text: str, doc_id: int, filename: str):
     try:
         from app.services.rag_engine import index_document
         chunk_count = index_document(text, doc_id)
-        logger.info("Background indexing completed: %d chunks for '%s' (doc_id=%d)", chunk_count, filename, doc_id)
+        logger.info(
+            "Background indexing completed: %d chunks for '%s' (doc_id=%d)",
+            chunk_count, filename, doc_id,
+        )
+        if chunk_count == 0:
+            logger.warning(
+                "Zero chunks indexed for '%s' (doc_id=%d) — "
+                "check that langchain-text-splitters is installed and text is non-empty.",
+                filename, doc_id,
+            )
     except Exception as exc:
-        logger.warning("Background indexing failed for '%s': %s", filename, exc)
+        logger.error(
+            "Background indexing FAILED for '%s' (doc_id=%d): %s",
+            filename, doc_id, exc, exc_info=True,
+        )
 
 
 @router.post("", response_model=DocumentRead)
@@ -88,3 +100,35 @@ def upload_document(
     except Exception as e:
         logger.error("Unexpected error during PDF upload '%s': %s", file.filename, e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to process PDF document: {str(e)}")
+
+
+@router.post("/reindex", tags=["upload"])
+def reindex_all(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    Re-index every document already in the DB from its saved PDF on disk.
+    Useful after wiping the FAISS index without losing uploaded files.
+    """
+    records = db.query(DocumentRecord).all()
+    queued = []
+    skipped = []
+
+    for record in records:
+        pdf_path = UPLOAD_DIR / record.filename
+        if not pdf_path.exists():
+            skipped.append({"id": record.id, "filename": record.filename, "reason": "file not found on disk"})
+            continue
+
+        text, _ = extract_pdf_info(pdf_path)
+        if not text or not text.strip():
+            skipped.append({"id": record.id, "filename": record.filename, "reason": "no text extracted"})
+            continue
+
+        background_tasks.add_task(_background_index, text, record.id, record.filename)
+        queued.append({"id": record.id, "filename": record.filename})
+
+    logger.info("Reindex triggered: %d queued, %d skipped", len(queued), len(skipped))
+    return {
+        "message": f"Re-indexing {len(queued)} document(s) in the background.",
+        "queued": queued,
+        "skipped": skipped,
+    }
