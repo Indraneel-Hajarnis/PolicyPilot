@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
 
 from app.config import settings
 
@@ -62,7 +62,7 @@ def index_document(text: str, doc_id: int) -> int:
         return 0
     try:
         from app.services.chunker import split_text
-        chunks = split_text(text, chunk_size=800, chunk_overlap=150)
+        chunks = split_text(text, chunk_size=1000, chunk_overlap=200)
         if not chunks:
             return 0
 
@@ -72,9 +72,6 @@ def index_document(text: str, doc_id: int) -> int:
             return 0
 
         embeddings = embedder.embed(chunks)
-        # Store full chunk text + doc_id/chunk_index as real metadata instead of
-        # packing a truncated "doc_id::i::chunk[:100]" string (which threw away
-        # everything past the first 100 characters of every chunk).
         metadatas = [
             {"doc_id": doc_id, "chunk_index": i, "text": chunk}
             for i, chunk in enumerate(chunks)
@@ -93,6 +90,7 @@ def answer_question(
     question: str,
     document_id: Optional[int] = None,
     language: str = "en",
+    conversation_history: Optional[List[Dict]] = None,
 ) -> dict:
     """Full RAG: embed question → FAISS search → Groq LLM → structured answer."""
     sources = []
@@ -106,10 +104,7 @@ def answer_question(
     if embedder and vs and vs.index and vs.index.ntotal > 0:
         try:
             q_emb = embedder.embed([question])[0]
-            # document_id is passed straight into the vector store so filtering
-            # happens against the FULL candidate pool, not just a fixed top-6
-            # global search that could exclude this document entirely.
-            hits = vs.search(q_emb, top_k=6, document_id=document_id)
+            hits = vs.search(q_emb, top_k=8, document_id=document_id)
             for hit in hits:
                 sim = round(1.0 / (1.0 + hit["distance"]), 3)
                 sources.append({
@@ -117,9 +112,9 @@ def answer_question(
                     "document_id": hit["doc_id"],
                     "chunk_index": hit.get("chunk_index"),
                     "score": sim,
-                    "page": None,  # page-level tracking not yet implemented
+                    "page": None,
                 })
-            context = "\n\n---\n\n".join(s["text"] for s in sources[:4])
+            context = "\n\n---\n\n".join(s["text"] for s in sources[:5])
             if sources:
                 confidence = sources[0]["score"]
         except Exception as exc:
@@ -142,30 +137,54 @@ def answer_question(
                "_No relevant policy documents uploaded yet. Please upload a policy PDF to begin._")
         )
     elif not context:
-        answer = (
-            "I couldn't find relevant content in the indexed policy documents to answer this question.\n\n"
-            "**Try:**\n"
-            "- Uploading a policy PDF first\n"
-            "- Rephrasing your question with more specific terms\n"
-            "- Changing the Search Scope in the sidebar"
-        )
-        confidence = 0.0
-    else:
-        prompt = (
-            f"You are PolicyPilot, an expert AI assistant for analyzing policy and legal documents.\n\n"
-            f"POLICY CONTEXT (retrieved via FAISS semantic search):\n{context}\n\n"
-            f"USER QUESTION: {question}\n\n"
+        # No context retrieved — use LLM general knowledge with a helpful prompt
+        groq = _get_groq()
+        no_context_prompt = (
+            f"You are PolicyPilot, an expert AI assistant specializing in policy, insurance, legal, and compliance documents.\n\n"
+            f"A user asked: \"{question}\"\n\n"
+            f"No relevant documents have been indexed yet, or no matching content was found in the currently uploaded documents.\n\n"
             f"{lang_instr}\n\n"
-            "Instructions:\n"
-            "- Answer based STRICTLY on the policy context provided.\n"
-            "- Be precise, structured, and cite relevant clauses/sections.\n"
-            "- Use Markdown formatting (bullets, bold key terms).\n"
-            "- If the context doesn't fully answer the question, say so clearly."
+            "Provide a helpful, informative answer based on your general knowledge about policy and insurance matters. "
+            "Mention that the user can upload a relevant policy PDF for more specific answers. "
+            "Be concise, friendly, and always offer value."
+        )
+        try:
+            messages = _build_messages(conversation_history, no_context_prompt)
+            answer = groq.generate_chat(messages, model=settings.model_name)
+            confidence = 0.3
+        except Exception as exc:
+            logger.error("Groq generation error (no context): %s", exc)
+            answer = (
+                "I couldn't find specific content in the uploaded documents for this question.\n\n"
+                "**Try:**\n"
+                "- Uploading a relevant policy PDF first\n"
+                "- Rephrasing your question with more specific terms\n"
+                "- Selecting a specific document from the scope dropdown"
+            )
+            confidence = 0.0
+    else:
+        # Context IS available — perform RAG synthesis
+        system_prompt = (
+            f"You are PolicyPilot, an expert AI assistant for analyzing policy, insurance, legal, and compliance documents.\n\n"
+            f"RETRIEVED POLICY CONTEXT (from semantic search over uploaded documents):\n"
+            f"{'=' * 60}\n"
+            f"{context}\n"
+            f"{'=' * 60}\n\n"
+            f"{lang_instr}\n\n"
+            "INSTRUCTIONS:\n"
+            "- Use the retrieved context as your PRIMARY source of information.\n"
+            "- Provide clear, structured, and helpful answers using Markdown (bullet points, **bold** key terms, numbered lists).\n"
+            "- If the context directly answers the question, cite the relevant information clearly.\n"
+            "- If the context partially answers the question, provide the best answer you can from the context and supplement with your expert knowledge — always prioritize being helpful.\n"
+            "- If the context contains conflicting provisions between different documents, highlight the contradiction clearly under a '⚠️ **Conflicting Policy Provisions**' section.\n"
+            "- NEVER say you cannot answer. Always provide the most useful response possible.\n"
+            "- NEVER say 'the policy says we cannot provide this information'.\n"
+            "- Be precise, thorough, and professional."
         )
         try:
             groq = _get_groq()
-            answer = groq.generate(prompt, model=settings.model_name)
-            confidence = max(confidence, 0.78)
+            messages = _build_messages(conversation_history, system_prompt, question)
+            answer = groq.generate_chat(messages, model=settings.model_name)
         except Exception as exc:
             logger.error("Groq generation error: %s", exc)
             answer = (
@@ -178,7 +197,32 @@ def answer_question(
         "sources": sources,
         "confidence": round(confidence, 3),
         "related_documents": [],
+        "conflicts": [],
     }
+
+
+def _build_messages(
+    conversation_history: Optional[List[Dict]],
+    system_prompt: str,
+    current_question: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Build the messages list for the Groq chat API.
+    Includes conversation history for multi-turn context.
+    """
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if conversation_history:
+        for turn in conversation_history[-10:]:
+            role = turn.get("role", "user")
+            content = turn.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": str(content)})
+
+    if current_question:
+        messages.append({"role": "user", "content": current_question})
+
+    return messages
 
 
 # ── Summarization ─────────────────────────────────────────────────────────────
@@ -214,7 +258,6 @@ def summarize_document(text: str, filename: str, language: str = "en") -> dict:
     try:
         groq = _get_groq()
         raw = groq.generate(prompt, model=settings.model_name).strip()
-        # Strip markdown code fences if the model wraps the JSON
         if raw.startswith("```"):
             parts = raw.split("```")
             raw = parts[1].lstrip("json").strip() if len(parts) > 1 else raw

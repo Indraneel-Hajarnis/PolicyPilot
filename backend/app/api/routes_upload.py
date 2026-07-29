@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,8 @@ logger = logging.getLogger("api.upload")
 router = APIRouter(prefix="/upload", tags=["upload"])
 UPLOAD_DIR = Path("./data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 
 
 def _background_index(text: str, doc_id: int, filename: str):
@@ -40,19 +43,43 @@ def _background_index(text: str, doc_id: int, filename: str):
         )
 
 
+def _extract_file_info(save_path: Path, extension: str):
+    """Route to the correct extractor based on file extension."""
+    if extension == ".docx":
+        from app.services.docx_extractor import extract_docx_info
+        return extract_docx_info(save_path)
+    else:
+        return extract_pdf_info(save_path)
+
+
+def _content_type_for_ext(extension: str) -> str:
+    """Return MIME type for known extensions."""
+    if extension == ".docx":
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return "application/pdf"
+
+
 @router.post("", response_model=DocumentRead)
 def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    department: Optional[str] = Form(None),
+    document_number: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided.")
 
-    # Sanitize filename (removes directory paths if passed on Windows)
+    # Sanitize filename
     clean_filename = Path(file.filename).name
-    if not clean_filename or not clean_filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Invalid PDF file name.")
+    extension = Path(clean_filename).suffix.lower()
+
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{extension}'. Only PDF and DOCX files are supported."
+        )
 
     try:
         # ── Save file to disk ──────────────────────────────────────────────────
@@ -65,7 +92,7 @@ def upload_document(
         file_size = len(contents)
 
         # ── Extract text + page count ─────────────────────────────────────────
-        extracted_text, page_count = extract_pdf_info(save_path)
+        extracted_text, page_count = _extract_file_info(save_path, extension)
 
         # ── Detect language ───────────────────────────────────────────────────
         detected_lang = "en"
@@ -75,15 +102,32 @@ def upload_document(
             except Exception as lang_err:
                 logger.warning("Language detection failed: %s", lang_err)
 
+        # ── Auto-extract metadata via LLM if not provided ─────────────────────
+        if extracted_text and (not department or not category):
+            try:
+                auto_meta = _auto_extract_metadata(extracted_text[:3000])
+                if not department and auto_meta.get("department"):
+                    department = auto_meta["department"]
+                if not category and auto_meta.get("category"):
+                    category = auto_meta["category"]
+                if not document_number and auto_meta.get("document_number"):
+                    document_number = auto_meta["document_number"]
+            except Exception as meta_err:
+                logger.warning("Auto metadata extraction failed: %s", meta_err)
+
         # ── Persist metadata to database ──────────────────────────────────────
         record = DocumentRecord(
             filename=clean_filename,
             original_name=clean_filename,
-            content_type=file.content_type or "application/pdf",
+            content_type=file.content_type or _content_type_for_ext(extension),
             file_size=file_size,
             page_count=page_count,
             language=detected_lang,
             text_preview=extracted_text[:10000] if extracted_text else None,
+            department=department,
+            document_number=document_number,
+            category=category,
+            status="active",
         )
         db.add(record)
         db.commit()
@@ -98,14 +142,40 @@ def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Unexpected error during PDF upload '%s': %s", file.filename, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to process PDF document: {str(e)}")
+        logger.error("Unexpected error during file upload '%s': %s", file.filename, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
+
+
+def _auto_extract_metadata(text_preview: str) -> dict:
+    """Use a simple heuristic + LLM to extract department, category, document_number from text."""
+    import json
+    from app.config import settings
+
+    if not settings.api_key:
+        return {}
+
+    try:
+        from app.services.groq_client import GroqClient
+        client = GroqClient(api_key=settings.api_key)
+        prompt = (
+            "Extract metadata from this government/policy document text. "
+            "Return ONLY valid JSON (no markdown) with these fields:\n"
+            '{"department": "department name or null", "document_number": "GR/circular number or null", "category": "one of: Policy, Circular, Resolution, Notification, Amendment, Report, Guidelines, Other"}\n\n'
+            f"DOCUMENT TEXT:\n{text_preview}"
+        )
+        raw = client.generate(prompt, model="llama-3.1-8b-instant").strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1].lstrip("json").strip() if len(parts) > 1 else raw
+        return json.loads(raw)
+    except Exception:
+        return {}
 
 
 @router.post("/reindex", tags=["upload"])
 def reindex_all(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
-    Re-index every document already in the DB from its saved PDF on disk.
+    Re-index every document already in the DB from its saved file on disk.
     Useful after wiping the FAISS index without losing uploaded files.
     """
     records = db.query(DocumentRecord).all()
@@ -113,12 +183,13 @@ def reindex_all(background_tasks: BackgroundTasks, db: Session = Depends(get_db)
     skipped = []
 
     for record in records:
-        pdf_path = UPLOAD_DIR / record.filename
-        if not pdf_path.exists():
+        file_path = UPLOAD_DIR / record.filename
+        if not file_path.exists():
             skipped.append({"id": record.id, "filename": record.filename, "reason": "file not found on disk"})
             continue
 
-        text, _ = extract_pdf_info(pdf_path)
+        extension = Path(record.filename).suffix.lower()
+        text, _ = _extract_file_info(file_path, extension)
         if not text or not text.strip():
             skipped.append({"id": record.id, "filename": record.filename, "reason": "no text extracted"})
             continue

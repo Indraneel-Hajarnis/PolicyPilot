@@ -4,9 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_analytics import router as analytics_router
+from app.api.routes_chat import router as chat_router
+from app.api.routes_compare import router as compare_router
 from app.api.routes_documents import router as documents_router
 from app.api.routes_health import router as health_router
 from app.api.routes_query import router as query_router
+from app.api.routes_repository import router as repository_router
 from app.api.routes_summary import router as summary_router
 from app.api.routes_upload import router as upload_router
 from app.config import settings
@@ -28,6 +31,9 @@ app.include_router(query_router, prefix="/api")
 app.include_router(summary_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
+app.include_router(compare_router, prefix="/api")
+app.include_router(repository_router, prefix="/api")
 
 init_db()
 

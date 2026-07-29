@@ -3,7 +3,8 @@ import pickle
 
 # pyrefly: ignore [missing-import]
 import faiss
-import numpy as np
+# pyrefly: ignore [missing-import]
+import numpy as np 
 
 
 class VectorStore:

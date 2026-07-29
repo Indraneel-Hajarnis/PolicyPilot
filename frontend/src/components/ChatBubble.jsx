@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { User, Bot, BookOpen, Volume2, VolumeX, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { User, Bot, BookOpen, Volume2, VolumeX, Copy, Check, ThumbsUp, ThumbsDown, AlertTriangle } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
 import SourceCitation from './SourceCitation';
 import { useLanguage } from '../context/LanguageContext';
@@ -124,6 +124,23 @@ export default function ChatBubble({ message }) {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Conflict Warning Banner */}
+          {!isUser && message.conflicts && message.conflicts.length > 0 && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1.5 animate-pulse">
+              <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase tracking-wider text-[11px]">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Conflicting Information Detected Between Documents</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-slate-200">
+                {message.conflicts.map((c, idx) => (
+                  <li key={idx}>
+                    {typeof c === 'string' ? c : c.description || JSON.stringify(c)}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

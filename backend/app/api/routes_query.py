@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict
 
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,10 +13,16 @@ from app.db.models import QueryLog
 router = APIRouter(prefix="/query", tags=["query"])
 
 
+class ConversationTurn(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
 class QueryRequest(BaseModel):
     question: str
     document_id: Optional[int] = None
     language: Optional[str] = "en"
+    conversation_history: Optional[List[ConversationTurn]] = None
 
 
 @router.post("")
@@ -26,10 +32,16 @@ def answer_query(payload: QueryRequest, db: Session = Depends(get_db)):
 
     from app.services.rag_engine import answer_question
 
+    # Convert conversation history to plain dicts for the engine
+    history = None
+    if payload.conversation_history:
+        history = [{"role": t.role, "content": t.content} for t in payload.conversation_history]
+
     result = answer_question(
         question=payload.question,
         document_id=payload.document_id,
         language=payload.language or "en",
+        conversation_history=history,
     )
 
     # ── Persist query log ─────────────────────────────────────────────────────

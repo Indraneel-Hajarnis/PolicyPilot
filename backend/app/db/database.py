@@ -26,6 +26,11 @@ def _migrate_db() -> None:
         "file_size": "INTEGER",
         "page_count": "INTEGER",
         "language": "VARCHAR(10)",
+        # SRS metadata fields
+        "department": "VARCHAR(255)",
+        "document_number": "VARCHAR(100)",
+        "category": "VARCHAR(100)",
+        "status": "VARCHAR(50)",
     }
     try:
         inspector = sa_inspect(engine)

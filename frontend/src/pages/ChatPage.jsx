@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Send, Bot, Trash2, Filter, Loader2, Sparkles, Volume2, Mic } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Send, Bot, Trash2, Filter, Loader2 } from 'lucide-react';
 import useChat from '../hooks/useChat';
 import ChatBubble from '../components/ChatBubble';
 import LanguageSelector from '../components/LanguageSelector';
 import RelatedDocsList from '../components/RelatedDocsList';
 import VoiceInputButton from '../components/VoiceInputButton';
+import ChatHistorySidebar from '../components/ChatHistorySidebar';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function ChatPage() {
-  const { messages, isLoading, sendMessage, clearChat, messagesEndRef } = useChat();
-  const { documents, refreshDocuments } = useAppContext();
+  const { messages, isLoading, sendMessage, clearChat, loadSessionMessages, messagesEndRef } = useChat();
+  const { documents, refreshDocuments, chatSelectedDocId, setChatSelectedDocId } = useAppContext();
   const { language, setLanguage, t } = useLanguage();
   const [inputQuestion, setInputQuestion] = useState('');
-  const [selectedDocId, setSelectedDocId] = useState('');
 
   useEffect(() => {
     refreshDocuments();
@@ -22,13 +22,20 @@ export default function ChatPage() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!inputQuestion.trim() || isLoading) return;
-    const docId = selectedDocId ? parseInt(selectedDocId) : null;
+    const docId = chatSelectedDocId ? parseInt(chatSelectedDocId) : null;
     sendMessage(inputQuestion, docId, language);
     setInputQuestion('');
   };
 
   const handleSpeechInput = (transcript) => {
     setInputQuestion(transcript);
+  };
+
+  const handleLoadSession = (sessionId, loadedMsgs, sessionInfo) => {
+    loadSessionMessages(sessionId, loadedMsgs, sessionInfo);
+    if (sessionInfo && sessionInfo.document_id) {
+      setChatSelectedDocId(String(sessionInfo.document_id));
+    }
   };
 
   const latestAiMessage = [...messages].reverse().find((m) => m.role === 'assistant');
@@ -41,7 +48,7 @@ export default function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-hidden bg-slate-950">
-      {/* Sidebar - Scope & Settings */}
+      {/* Sidebar - Scope, History & Settings */}
       <div className="w-full md:w-80 bg-slate-900/80 border-b md:border-b-0 md:border-r border-slate-800 p-4 space-y-5 flex shrink-0 flex-col overflow-y-auto backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
@@ -61,8 +68,8 @@ export default function ChatPage() {
         <div className="space-y-1.5">
           <label className="text-xs text-slate-400 font-medium">{t('policySelection')}</label>
           <select
-            value={selectedDocId}
-            onChange={(e) => setSelectedDocId(e.target.value)}
+            value={chatSelectedDocId}
+            onChange={(e) => setChatSelectedDocId(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
           >
             <option value="" className="bg-slate-900 text-white">
@@ -80,6 +87,11 @@ export default function ChatPage() {
         <div className="space-y-1.5 pt-1">
           <label className="text-xs text-slate-400 font-medium">{t('langLabel')}</label>
           <LanguageSelector selectedLanguage={language} onChange={setLanguage} />
+        </div>
+
+        {/* Chat Sessions History Sidebar Component (SRS Section 3.7 FR3) */}
+        <div className="pt-2 border-t border-slate-800">
+          <ChatHistorySidebar onLoadSession={handleLoadSession} onNewChat={clearChat} />
         </div>
 
         {/* Related documents sidebar widget */}
