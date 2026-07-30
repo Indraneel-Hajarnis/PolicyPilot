@@ -10,10 +10,11 @@ import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function ChatPage() {
-  const { messages, isLoading, sendMessage, clearChat, loadSessionMessages, messagesEndRef } = useChat();
+  const { messages, isLoading, sendMessage, clearChat, loadSessionMessages, activeSessionId, messagesEndRef } = useChat();
   const { documents, refreshDocuments, chatSelectedDocId, setChatSelectedDocId } = useAppContext();
   const { language, setLanguage, t } = useLanguage();
   const [inputQuestion, setInputQuestion] = useState('');
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
 
   useEffect(() => {
     refreshDocuments();
@@ -25,6 +26,8 @@ export default function ChatPage() {
     const docId = chatSelectedDocId ? parseInt(chatSelectedDocId) : null;
     sendMessage(inputQuestion, docId, language);
     setInputQuestion('');
+    // Refresh sidebar counts ~2s after to catch async DB saves
+    setTimeout(() => setSidebarRefreshKey((k) => k + 1), 2000);
   };
 
   const handleSpeechInput = (transcript) => {
@@ -91,7 +94,12 @@ export default function ChatPage() {
 
         {/* Chat Sessions History Sidebar Component (SRS Section 3.7 FR3) */}
         <div className="pt-2 border-t border-slate-800">
-          <ChatHistorySidebar onLoadSession={handleLoadSession} onNewChat={clearChat} />
+          <ChatHistorySidebar
+            onLoadSession={handleLoadSession}
+            onNewChat={clearChat}
+            refreshTrigger={sidebarRefreshKey}
+            activeSessionId={activeSessionId}
+          />
         </div>
 
         {/* Related documents sidebar widget */}
