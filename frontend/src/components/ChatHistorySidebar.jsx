@@ -3,7 +3,7 @@ import { MessageSquarePlus, Trash2, Clock, Loader2, ChevronDown, ChevronUp } fro
 import { getChatSessions, deleteChatSession, getSessionMessages, createChatSession } from '../api/client';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ChatHistorySidebar({ onLoadSession, onNewChat }) {
+export default function ChatHistorySidebar({ onLoadSession, onNewChat, refreshTrigger, activeSessionId: activeSessId }) {
   const { t } = useLanguage();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,12 +26,19 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat }) {
     fetchSessions();
   }, []);
 
+  // Re-fetch whenever the parent signals new messages were saved
+  useEffect(() => {
+    if (refreshTrigger) fetchSessions();
+  }, [refreshTrigger]);
+
   const handleLoad = async (sessionId) => {
     try {
       const data = await getSessionMessages(sessionId);
       if (onLoadSession) {
         onLoadSession(sessionId, data.messages, data.session);
       }
+      // Refresh counts after loading so the sidebar stays accurate
+      fetchSessions();
     } catch (err) {
       console.error('Failed to load session messages:', err);
     }
@@ -58,7 +65,9 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat }) {
 
   const formatDate = (iso) => {
     if (!iso) return '';
-    const d = new Date(iso);
+    // Ensure the timestamp is treated as UTC (append 'Z' if no timezone info)
+    const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+    const d = new Date(normalized);
     const now = new Date();
     const diff = now - d;
     if (diff < 60000) return 'Just now';
@@ -106,21 +115,27 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat }) {
               {sessions.map((session) => (
                 <div
                   key={session.id}
-                  onClick={() => handleLoad(session.id)}
-                  className="group flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all"
+                  className={`group flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
+                    activeSessId === session.id
+                      ? 'bg-teal-500/10 border-teal-500/30'
+                      : 'bg-slate-800/50 hover:bg-slate-800 border-slate-800 hover:border-slate-700'
+                  }`}
                 >
-                  <div className="min-w-0 flex-1">
+                  <button
+                    onClick={() => handleLoad(session.id)}
+                    className="min-w-0 flex-1 text-left cursor-pointer"
+                  >
                     <p className="text-[11px] text-slate-200 font-medium truncate">
                       {session.title || 'Untitled Chat'}
                     </p>
                     <p className="text-[9px] text-slate-500 flex items-center gap-1">
-                      {session.message_count} msgs · {formatDate(session.updated_at)}
+                      {session.message_count > 0 ? `${session.message_count} msgs · ` : ''}{formatDate(session.updated_at)}
                     </p>
-                  </div>
+                  </button>
                   <button
                     onClick={(e) => handleDelete(session.id, e)}
                     disabled={deletingId === session.id}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-500 hover:text-rose-400 transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-500 hover:text-rose-400 transition-all shrink-0"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
