@@ -56,14 +56,27 @@ def _get_groq():
 
 # ── Indexing ─────────────────────────────────────────────────────────────────
 
-def index_document(text: str, doc_id: int) -> int:
+def index_document(
+    text: str,
+    doc_id: int,
+    page_tuples: Optional[List[Tuple[int, str]]] = None,
+    doc_meta: Optional[Dict] = None,
+) -> int:
     """Chunk → embed → add to FAISS. Returns number of indexed chunks."""
     if not text or not text.strip():
         return 0
     try:
-        from app.services.chunker import split_text
-        chunks = split_text(text, chunk_size=1000, chunk_overlap=200)
-        if not chunks:
+        from app.services.chunker import split_text, split_page_tuples
+        if page_tuples:
+            raw_chunks = split_page_tuples(page_tuples, chunk_size=1000, chunk_overlap=200)
+        else:
+            simple_chunks = split_text(text, chunk_size=1000, chunk_overlap=200)
+            raw_chunks = [
+                {"text": chunk, "page_number": 1, "chunk_index": i}
+                for i, chunk in enumerate(simple_chunks)
+            ]
+
+        if not raw_chunks:
             return 0
 
         embedder = _get_embedder()
@@ -71,14 +84,27 @@ def index_document(text: str, doc_id: int) -> int:
         if embedder is None or vs is None:
             return 0
 
-        embeddings = embedder.embed(chunks)
+        texts_to_embed = [c["text"] for c in raw_chunks]
+        embeddings = embedder.embed(texts_to_embed)
+
+        meta_base = doc_meta or {}
         metadatas = [
-            {"doc_id": doc_id, "chunk_index": i, "text": chunk}
-            for i, chunk in enumerate(chunks)
+            {
+                "doc_id": doc_id,
+                "chunk_index": c["chunk_index"],
+                "page_number": c.get("page_number", 1),
+                "text": c["text"],
+                "filename": meta_base.get("filename"),
+                "document_number": meta_base.get("document_number"),
+                "department": meta_base.get("department"),
+                "category": meta_base.get("category"),
+                "issue_date": meta_base.get("issue_date"),
+            }
+            for c in raw_chunks
         ]
         vs.add(embeddings, metadatas)
-        logger.info("Indexed %d chunks for doc_id=%d", len(chunks), doc_id)
-        return len(chunks)
+        logger.info("Indexed %d chunks for doc_id=%d", len(raw_chunks), doc_id)
+        return len(raw_chunks)
     except Exception as exc:
         logger.warning("Indexing failed for doc_id=%d: %s", doc_id, exc)
         return 0
@@ -96,27 +122,48 @@ def answer_question(
     sources = []
     context = ""
     confidence = 0.0
+    conflicts = []
 
-    # 1. Retrieve relevant chunks
+    # 1. Retrieve relevant chunks with cross-lingual query expansion
     embedder = _get_embedder()
     vs = _get_vector_store()
 
     if embedder and vs and vs.index and vs.index.ntotal > 0:
         try:
-            q_emb = embedder.embed([question])[0]
+            from app.services.language_utils import translate_and_expand_query
+            search_query = translate_and_expand_query(question, target_lang=language)
+            q_emb = embedder.embed([search_query])[0]
             hits = vs.search(q_emb, top_k=8, document_id=document_id)
+
+            min_thresh = float(getattr(settings, "similarity_threshold", 0.28))
             for hit in hits:
-                sim = round(1.0 / (1.0 + hit["distance"]), 3)
-                sources.append({
-                    "text": hit["text"],
-                    "document_id": hit["doc_id"],
-                    "chunk_index": hit.get("chunk_index"),
-                    "score": sim,
-                    "page": None,
-                })
-            context = "\n\n---\n\n".join(s["text"] for s in sources[:5])
+                # FAISS L2 distance on normalized vectors -> exact cosine similarity
+                dist = hit.get("distance", 2.0)
+                sim = round(max(0.0, 1.0 - (dist / 2.0)), 3)
+                if sim >= min_thresh:
+                    sources.append({
+                        "text": hit["text"],
+                        "document_id": hit["doc_id"],
+                        "chunk_index": hit.get("chunk_index"),
+                        "score": sim,
+                        "page": hit.get("page_number", 1),
+                        "page_number": hit.get("page_number", 1),
+                        "filename": hit.get("filename"),
+                        "document_number": hit.get("document_number"),
+                        "department": hit.get("department"),
+                        "issue_date": hit.get("issue_date"),
+                    })
+
             if sources:
+                sources.sort(key=lambda x: x["score"], reverse=True)
                 confidence = sources[0]["score"]
+                context_passages = []
+                for s in sources[:5]:
+                    prefix = f"[Doc #{s['document_id']} | Page {s['page_number']}]"
+                    if s.get("document_number"):
+                        prefix += f" [GR: {s['document_number']}]"
+                    context_passages.append(f"{prefix}\n{s['text']}")
+                context = "\n\n---\n\n".join(context_passages)
         except Exception as exc:
             logger.warning("Retrieval error: %s", exc)
 
@@ -127,64 +174,75 @@ def answer_question(
     }
     lang_instr = lang_map.get(language, "Respond in clear, professional English.")
 
-    # 3. LLM generation
+    # 3. LLM generation or grounded refusal
     active_key = settings.api_key
+
+    if not sources or not context.strip():
+        # SRS Grounded Refusal — NO ungrounded parametric general knowledge
+        if language == "mr":
+            answer = (
+                "⚠️ **शासकीय दस्तऐवज उपलब्ध नाहीत (Insufficient Authenticated Evidence)**\n\n"
+                "तुमच्या प्रश्नासाठी केंद्रीय भांडारामध्ये संबंधित अधिकृत शासन निर्णय किंवा परिपत्रकाचा संदर्भ आढळला नाही. "
+                "अचूक माहितीसाठी कृपया संबंधित शासन निर्णय अपलोड करा."
+            )
+        elif language == "hi":
+            answer = (
+                "⚠️ **प्रमाणित दस्तावेज़ उपलब्ध नहीं हैं (Insufficient Authenticated Evidence)**\n\n"
+                "आपके प्रश्न के लिए केंद्रीय रिपोजिटरी में कोई प्रासंगिक सरकारी संकल्प या परिपत्रक नहीं मिला। "
+                "कृपया प्रासंगिक दस्तावेज़ अपलोड करें।"
+            )
+        else:
+            answer = (
+                "⚠️ **Insufficient Authenticated Evidence**\n\n"
+                "No matching policy passages or authenticated evidence were found in the repository for your query. "
+                "To maintain strict regulatory grounding, answers cannot be generated without indexed source context.\n\n"
+                "**Recommended Actions:**\n"
+                "- Try rephrasing your question with specific terms or GR reference numbers.\n"
+                "- Import or upload the relevant Government Resolution (GR) via the Repository page."
+            )
+        return {
+            "answer": answer,
+            "sources": [],
+            "confidence": 0.0,
+            "related_documents": [],
+            "conflicts": [],
+        }
+
     if not active_key:
         answer = (
             "ℹ️ **AI Service Configuration Notice**\n\n"
             "Please configure your `GROQ_API_KEY` in the server environment settings to enable automated AI responses.\n\n"
-            + (f"**Relevant Policy Passages Found:**\n\n> {context[:600]}..." if context else
-               "_No relevant policy documents uploaded yet. Please upload a policy PDF to begin._")
+            f"**Relevant Policy Passages Found:**\n\n> {context[:600]}..."
         )
-    elif not context:
-        # No context retrieved — use LLM general knowledge with a helpful prompt
-        groq = _get_groq()
-        no_context_prompt = (
-            f"You are PolicyPilot, an expert AI assistant specializing in policy, insurance, legal, and compliance documents.\n\n"
-            f"A user asked: \"{question}\"\n\n"
-            f"No relevant documents have been indexed yet, or no matching content was found in the currently uploaded documents.\n\n"
-            f"{lang_instr}\n\n"
-            "Provide a helpful, informative answer based on your general knowledge about policy and insurance matters. "
-            "Mention that the user can upload a relevant policy PDF for more specific answers. "
-            "Be concise, friendly, and always offer value."
-        )
-        try:
-            messages = _build_messages(conversation_history, no_context_prompt)
-            answer = groq.generate_chat(messages, model=settings.model_name)
-            confidence = 0.3
-        except Exception as exc:
-            logger.error("Groq generation error (no context): %s", exc)
-            answer = (
-                "I couldn't find specific content in the uploaded documents for this question.\n\n"
-                "**Try:**\n"
-                "- Uploading a relevant policy PDF first\n"
-                "- Rephrasing your question with more specific terms\n"
-                "- Selecting a specific document from the scope dropdown"
-            )
-            confidence = 0.0
     else:
         # Context IS available — perform RAG synthesis
         system_prompt = (
-            f"You are PolicyPilot, an expert AI assistant for analyzing policy, insurance, legal, and compliance documents.\n\n"
-            f"RETRIEVED POLICY CONTEXT (from semantic search over uploaded documents):\n"
+            f"You are PolicyPilot, an expert AI assistant for analyzing government policy, insurance, legal, and compliance documents.\n\n"
+            f"RETRIEVED POLICY CONTEXT (from semantic search over authenticated repository documents):\n"
             f"{'=' * 60}\n"
             f"{context}\n"
             f"{'=' * 60}\n\n"
             f"{lang_instr}\n\n"
             "INSTRUCTIONS:\n"
-            "- Use the retrieved context as your PRIMARY source of information.\n"
-            "- Provide clear, structured, and helpful answers using Markdown (bullet points, **bold** key terms, numbered lists).\n"
-            "- If the context directly answers the question, cite the relevant information clearly.\n"
-            "- If the context partially answers the question, provide the best answer you can from the context and supplement with your expert knowledge — always prioritize being helpful.\n"
-            "- If the context contains conflicting provisions between different documents, highlight the contradiction clearly under a '⚠️ **Conflicting Policy Provisions**' section.\n"
-            "- NEVER say you cannot answer. Always provide the most useful response possible.\n"
-            "- NEVER say 'the policy says we cannot provide this information'.\n"
-            "- Be precise, thorough, and professional."
+            "- Use the retrieved context as your ONLY source of truth. Rely strictly on facts mentioned in the context.\n"
+            "- Provide clear, structured, professional answers using Markdown.\n"
+            "- Always cite specific Page Numbers and GR Document Numbers when referencing facts.\n"
+            "- If the context contains conflicting provisions between different documents or dates, highlight the conflict clearly under a '⚠️ **Conflicting Policy Provisions**' section.\n"
+            "- Never fabricate policies or speculate beyond the provided text."
         )
         try:
             groq = _get_groq()
             messages = _build_messages(conversation_history, system_prompt, question)
             answer = groq.generate_chat(messages, model=settings.model_name)
+
+            # Check for conflict objects if multiple document sources exist
+            doc_ids = {s["document_id"] for s in sources if s.get("document_id")}
+            if len(doc_ids) > 1 and ("conflict" in answer.lower() or "supersed" in answer.lower() or "amend" in answer.lower()):
+                conflicts.append({
+                    "description": "Cross-document policy differences detected between retrieved sections.",
+                    "document_ids": list(doc_ids),
+                })
+
         except Exception as exc:
             logger.error("Groq generation error: %s", exc)
             answer = (
@@ -197,8 +255,9 @@ def answer_question(
         "sources": sources,
         "confidence": round(confidence, 3),
         "related_documents": [],
-        "conflicts": [],
+        "conflicts": conflicts,
     }
+
 
 
 def _build_messages(

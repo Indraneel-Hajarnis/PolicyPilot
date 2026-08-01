@@ -9,6 +9,27 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('policypilot_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+
+export const loginUser = async (username, password) => {
+  const response = await api.post('/auth/login', { username, password });
+  return response.data;
+};
+
+export const getCurrentUser = async () => {
+  const response = await api.get('/auth/me');
+  return response.data;
+};
+
+
 // ── Upload ──────────────────────────────────────────────────────────────────
 
 export const uploadDocument = async (file, onProgress, metadata = {}) => {
@@ -137,6 +158,12 @@ export const importFromRepository = async (url, source, filename = null) => {
   const response = await api.post('/repository/import', { url, source, filename });
   return response.data;
 };
+
+export const seedRepository = async () => {
+  const response = await api.post('/repository/seed');
+  return response.data;
+};
+
 
 // ── Analytics ───────────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Database, Globe, FolderGit2, Download, Loader2, ArrowLeft, FolderOpen, FileText, ExternalLink, CheckCircle2 } from 'lucide-react';
-import { getRepositorySources, browseGitHubRepo, importFromRepository } from '../api/client';
+import { getRepositorySources, browseGitHubRepo, importFromRepository, seedRepository } from '../api/client';
+
 import { useToast } from '../context/ToastContext';
 
 const TAB_ICONS = { github: FolderGit2, portal: Globe };
@@ -68,18 +69,37 @@ export default function RepositoryPage() {
     return `${(bytes / 1048576).toFixed(1)} MB`;
   };
 
+  const handleSeedRepository = async () => {
+    try {
+      toast.info('Seeding Maharashtra policy corpus...');
+      const res = await seedRepository();
+      toast.success(res.message || 'Central repository seeded successfully!');
+    } catch (err) {
+      toast.error(`Seeding failed: ${err.message}`);
+    }
+  };
+
   return (
     <div className="page-container space-y-8 animate-fade-in pb-12">
       {/* Header */}
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-xs font-bold text-purple-300 shadow-sm">
-          <Database className="w-4 h-4 text-purple-400" /> Centralized Repository
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-xs font-bold text-purple-300 shadow-sm">
+            <Database className="w-4 h-4 text-purple-400" /> Centralized Repository
+          </div>
+          <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">Open Datasets</h1>
+          <p className="section-subtitle text-slate-400 max-w-3xl">
+            Browse and import documents from official Maharashtra Government sources and open datasets.
+          </p>
         </div>
-        <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">Open Datasets</h1>
-        <p className="section-subtitle text-slate-400 max-w-3xl">
-          Browse and import documents from official Maharashtra Government sources and open datasets.
-        </p>
+        <button
+          onClick={handleSeedRepository}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs shadow-lg shadow-purple-500/20 hover:from-purple-500 hover:to-indigo-500 transition-all shrink-0"
+        >
+          <Database className="w-4 h-4" /> Seed Central Corpus
+        </button>
       </div>
+
 
       {/* Source Tabs */}
       <div className="flex flex-wrap gap-2">

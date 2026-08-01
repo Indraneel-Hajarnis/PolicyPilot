@@ -13,12 +13,16 @@ export default function SourceCitation({ source, index }) {
       ? `${(source.score * 100).toFixed(0)}%`
       : null;
 
+  const pageNum = source.page_number ?? source.page;
   const locationLabel =
-    source.page != null
-      ? `Page ${source.page}`
+    pageNum != null
+      ? `Page ${pageNum}`
       : source.chunk_index != null
       ? `Chunk ${source.chunk_index + 1}`
       : `Source ${(index ?? 0) + 1}`;
+
+  const grBadge = source.document_number ? `GR: ${source.document_number}` : null;
+  const deptLabel = source.department ? source.department : null;
 
   // Short preview of chunk text shown in collapsed header
   const preview = source.text
@@ -32,11 +36,21 @@ export default function SourceCitation({ source, index }) {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between px-3.5 py-2.5 cursor-pointer bg-slate-800/40 hover:bg-white/10 transition-colors"
       >
-        <div className="flex items-center gap-2 text-white/90 font-medium min-w-0">
+        <div className="flex items-center gap-2 text-white/90 font-medium min-w-0 flex-wrap">
           <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-          <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[10px] shrink-0">
+          <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[10px] shrink-0 font-semibold">
             {locationLabel}
           </span>
+          {grBadge && (
+            <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[10px] shrink-0 font-medium">
+              {grBadge}
+            </span>
+          )}
+          {deptLabel && (
+            <span className="px-2 py-0.5 rounded bg-slate-700/50 text-slate-300 text-[10px] shrink-0">
+              {deptLabel}
+            </span>
+          )}
           <span className="truncate text-white/60 italic">{preview}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -45,6 +59,7 @@ export default function SourceCitation({ source, index }) {
               {scorePercent}
             </span>
           )}
+
           {expanded ? (
             <ChevronUp className="w-4 h-4 text-white/50" />
           ) : (

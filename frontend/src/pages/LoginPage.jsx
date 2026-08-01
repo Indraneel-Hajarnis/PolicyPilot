@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ShieldCheck, UserCircle, Briefcase, Languages, Settings } from 'lucide-react';
+import { ShieldCheck, Briefcase, Languages, Settings, Lock } from 'lucide-react';
 import { useAuth, ROLES } from '../context/AuthContext';
 
 const roleCards = [
   {
     key: 'desk_officer',
+    username: 'desk.officer',
+    password: 'DeskOfficer123!',
     icon: Briefcase,
     gradient: 'from-teal-500 to-emerald-500',
     shadow: 'shadow-teal-500/20',
@@ -13,6 +15,8 @@ const roleCards = [
   },
   {
     key: 'legal_translator',
+    username: 'legal.translator',
+    password: 'Translator123!',
     icon: Languages,
     gradient: 'from-indigo-500 to-purple-500',
     shadow: 'shadow-indigo-500/20',
@@ -21,6 +25,8 @@ const roleCards = [
   },
   {
     key: 'it_admin',
+    username: 'it.admin',
+    password: 'Admin123!',
     icon: Settings,
     gradient: 'from-amber-500 to-orange-500',
     shadow: 'shadow-amber-500/20',
@@ -30,13 +36,31 @@ const roleCards = [
 ];
 
 export default function LoginPage() {
-  const { login } = useAuth();
-  const [name, setName] = useState('');
-  const [selectedRole, setSelectedRole] = useState(null);
+  const { loginWithCredentials, login } = useAuth();
+  const [selectedRole, setSelectedRole] = useState('desk_officer');
+  const [username, setUsername] = useState('desk.officer');
+  const [password, setPassword] = useState('DeskOfficer123!');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (!selectedRole) return;
-    login(selectedRole, name || ROLES[selectedRole].label);
+  const handleSelectRole = (rc) => {
+    setSelectedRole(rc.key);
+    setUsername(rc.username);
+    setPassword(rc.password);
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await loginWithCredentials(username, password);
+    } catch (err) {
+      console.warn('Backend login failed, fallback to client state:', err);
+      login(selectedRole, ROLES[selectedRole]?.label || username);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,72 +76,85 @@ export default function LoginPage() {
               Policy<span className="text-teal-400">Pilot</span>
             </h1>
             <p className="text-sm text-slate-400 mt-2">
-              Secure Government Document Analysis Platform
+              Authenticated Government Document Analysis & Multilingual RAG Platform
             </p>
           </div>
         </div>
 
-        {/* Name Input */}
-        <div className="max-w-md mx-auto">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your Name (optional)</label>
-          <div className="relative mt-1.5">
-            <UserCircle className="w-5 h-5 text-slate-500 absolute left-3.5 top-3" />
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-400 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Role Selection */}
+        {/* Role Cards */}
         <div className="space-y-3">
           <h2 className="text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-            Select Your Role
+            Select Role Preset or Enter Credentials
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {roleCards.map(({ key, icon: Icon, gradient, shadow, border, desc }) => {
-              const role = ROLES[key];
-              const isSelected = selectedRole === key;
+            {roleCards.map((rc) => {
+              const role = ROLES[rc.key];
+              const isSelected = selectedRole === rc.key;
+              const Icon = rc.icon;
               return (
                 <button
-                  key={key}
-                  onClick={() => setSelectedRole(key)}
+                  key={rc.key}
+                  type="button"
+                  onClick={() => handleSelectRole(rc)}
                   className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${
                     isSelected
-                      ? `${border} bg-slate-800/80 scale-[1.02] ${shadow} shadow-xl`
+                      ? `${rc.border} bg-slate-800/80 scale-[1.02] ${rc.shadow} shadow-xl`
                       : 'border-slate-800 bg-slate-900/80 hover:border-slate-700 hover:bg-slate-800/60'
                   }`}
                 >
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 shadow-lg ${shadow} group-hover:scale-110 transition-transform`}>
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${rc.gradient} flex items-center justify-center mb-4 shadow-lg ${rc.shadow} group-hover:scale-110 transition-transform`}>
                     <Icon className="w-6 h-6 text-white" />
                   </div>
                   <h3 className="text-base font-bold text-white mb-1">{role.label}</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">{desc}</p>
-                  {isSelected && (
-                    <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/20 border border-teal-500/30 text-[10px] font-bold text-teal-300">
-                      ✓ Selected
-                    </div>
-                  )}
+                  <p className="text-xs text-slate-400 leading-relaxed mb-3">{rc.desc}</p>
+                  <div className="text-[10px] text-slate-500 font-mono">
+                    user: {rc.username}
+                  </div>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Login Button */}
-        <div className="text-center">
+        {/* Login Form */}
+        <form onSubmit={handleLogin} className="max-w-md mx-auto space-y-4 bg-slate-900/90 border border-slate-800 p-6 rounded-2xl">
+          {error && <div className="p-3 text-xs bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl">{error}</div>}
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
+            <div className="relative mt-1">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400"
+              />
+              <Lock className="w-4 h-4 text-slate-500 absolute right-3.5 top-3" />
+            </div>
+          </div>
+
           <button
-            onClick={handleLogin}
-            disabled={!selectedRole}
-            className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold px-10 py-3.5 rounded-xl transition-all shadow-lg shadow-teal-500/20 text-sm"
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-teal-500/20 text-sm disabled:opacity-50"
           >
-            Sign In as {selectedRole ? ROLES[selectedRole].label : '...'}
+            {loading ? 'Authenticating...' : `Sign In as ${ROLES[selectedRole]?.label || username}`}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
+

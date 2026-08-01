@@ -21,21 +21,15 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 
 
-def _background_index(text: str, doc_id: int, filename: str):
+def _background_index(text: str, doc_id: int, filename: str, page_tuples=None, doc_meta=None):
     """Run FAISS indexing asynchronously in the background."""
     try:
         from app.services.rag_engine import index_document
-        chunk_count = index_document(text, doc_id)
+        chunk_count = index_document(text, doc_id, page_tuples=page_tuples, doc_meta=doc_meta)
         logger.info(
             "Background indexing completed: %d chunks for '%s' (doc_id=%d)",
             chunk_count, filename, doc_id,
         )
-        if chunk_count == 0:
-            logger.warning(
-                "Zero chunks indexed for '%s' (doc_id=%d) — "
-                "check that langchain-text-splitters is installed and text is non-empty.",
-                filename, doc_id,
-            )
     except Exception as exc:
         logger.error(
             "Background indexing FAILED for '%s' (doc_id=%d): %s",
@@ -45,11 +39,19 @@ def _background_index(text: str, doc_id: int, filename: str):
 
 def _extract_file_info(save_path: Path, extension: str):
     """Route to the correct extractor based on file extension."""
-    if extension == ".docx":
-        from app.services.docx_extractor import extract_docx_info
-        return extract_docx_info(save_path)
+    if extension == ".txt":
+        text = save_path.read_text(encoding="utf-8", errors="ignore")
+        return text, 1, None, False, 0.0
+    elif extension == ".docx":
+        from app.services.docx_extractor import extract_docx_detailed
+        return extract_docx_detailed(save_path)
     else:
-        return extract_pdf_info(save_path)
+        try:
+            from app.services.pdf_extractor import extract_pdf_detailed
+            return extract_pdf_detailed(save_path)
+        except Exception:
+            text = save_path.read_text(encoding="utf-8", errors="ignore")
+            return text, 1, None, False, 0.0
 
 
 def _content_type_for_ext(extension: str) -> str:
@@ -71,7 +73,6 @@ def upload_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided.")
 
-    # Sanitize filename
     clean_filename = Path(file.filename).name
     extension = Path(clean_filename).suffix.lower()
 
@@ -82,7 +83,6 @@ def upload_document(
         )
 
     try:
-        # ── Save file to disk ──────────────────────────────────────────────────
         save_path = UPLOAD_DIR / clean_filename
         contents = file.file.read()
         if not contents or len(contents) == 0:
@@ -91,8 +91,8 @@ def upload_document(
         save_path.write_bytes(contents)
         file_size = len(contents)
 
-        # ── Extract text + page count ─────────────────────────────────────────
-        extracted_text, page_count = _extract_file_info(save_path, extension)
+        # ── Extract text + page count + OCR details ────────────────────────────
+        extracted_text, page_count, page_tuples, ocr_used, ocr_conf = _extract_file_info(save_path, extension)
 
         # ── Detect language ───────────────────────────────────────────────────
         detected_lang = "en"
@@ -102,20 +102,28 @@ def upload_document(
             except Exception as lang_err:
                 logger.warning("Language detection failed: %s", lang_err)
 
-        # ── Auto-extract metadata via LLM if not provided ─────────────────────
-        if extracted_text and (not department or not category):
-            try:
-                auto_meta = _auto_extract_metadata(extracted_text[:3000])
-                if not department and auto_meta.get("department"):
-                    department = auto_meta["department"]
-                if not category and auto_meta.get("category"):
-                    category = auto_meta["category"]
-                if not document_number and auto_meta.get("document_number"):
-                    document_number = auto_meta["document_number"]
-            except Exception as meta_err:
-                logger.warning("Auto metadata extraction failed: %s", meta_err)
+        # ── Auto-extract metadata via LLM or heuristics if not provided ─────
+        if extracted_text:
+            from app.services.status_inference import extract_gr_metadata
+            h_meta = extract_gr_metadata(extracted_text)
+            if not document_number and h_meta.get("document_number"):
+                document_number = h_meta["document_number"]
+            if not department and h_meta.get("department"):
+                department = h_meta["department"]
 
-        # ── Persist metadata to database ──────────────────────────────────────
+            if not department or not category:
+                try:
+                    auto_meta = _auto_extract_metadata(extracted_text[:3000])
+                    if not department and auto_meta.get("department"):
+                        department = auto_meta["department"]
+                    if not category and auto_meta.get("category"):
+                        category = auto_meta["category"]
+                    if not document_number and auto_meta.get("document_number"):
+                        document_number = auto_meta["document_number"]
+                except Exception as meta_err:
+                    logger.warning("Auto metadata extraction failed: %s", meta_err)
+
+        # ── Persist record ────────────────────────────────────────────────────
         record = DocumentRecord(
             filename=clean_filename,
             original_name=clean_filename,
@@ -126,18 +134,36 @@ def upload_document(
             text_preview=extracted_text[:10000] if extracted_text else None,
             department=department,
             document_number=document_number,
-            category=category,
+            category=category or "Resolution",
             status="active",
+            ocr_used=ocr_used,
+            ocr_confidence=ocr_conf,
         )
         db.add(record)
         db.commit()
         db.refresh(record)
 
-        # ── Schedule background indexing to prevent HTTP timeouts ─────────────
+        # ── Infer relationships ────────────────────────────────────────────────
         if extracted_text:
-            background_tasks.add_task(_background_index, extracted_text, record.id, clean_filename)
+            try:
+                from app.services.status_inference import infer_document_relationships
+                infer_document_relationships(record, extracted_text, db)
+            except Exception as rel_err:
+                logger.warning("Relationship inference warning: %s", rel_err)
+
+        # ── Schedule background indexing with page provenance ──────────────────
+        if extracted_text:
+            doc_meta = {
+                "filename": record.filename,
+                "document_number": record.document_number,
+                "department": record.department,
+                "category": record.category,
+                "issue_date": record.issue_date,
+            }
+            background_tasks.add_task(_background_index, extracted_text, record.id, clean_filename, page_tuples, doc_meta)
 
         return record
+
 
     except HTTPException:
         raise
@@ -189,12 +215,19 @@ def reindex_all(background_tasks: BackgroundTasks, db: Session = Depends(get_db)
             continue
 
         extension = Path(record.filename).suffix.lower()
-        text, _ = _extract_file_info(file_path, extension)
-        if not text or not text.strip():
+        extracted_text, page_count, page_tuples, ocr_used, ocr_conf = _extract_file_info(file_path, extension)
+        if not extracted_text or not extracted_text.strip():
             skipped.append({"id": record.id, "filename": record.filename, "reason": "no text extracted"})
             continue
 
-        background_tasks.add_task(_background_index, text, record.id, record.filename)
+        doc_meta = {
+            "filename": record.filename,
+            "document_number": record.document_number,
+            "department": record.department,
+            "category": record.category,
+            "issue_date": record.issue_date,
+        }
+        background_tasks.add_task(_background_index, extracted_text, record.id, record.filename, page_tuples, doc_meta)
         queued.append({"id": record.id, "filename": record.filename})
 
     logger.info("Reindex triggered: %d queued, %d skipped", len(queued), len(skipped))

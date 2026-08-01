@@ -25,13 +25,19 @@ def get_summary(document_id: int, language: str = "en", db: Session = Depends(ge
     full_text = ""
     file_path = UPLOAD_DIR / document.filename
     if file_path.exists():
+        ext = file_path.suffix.lower()
         try:
-            from app.services.pdf_extractor import extract_pdf_info
-            full_text, _ = extract_pdf_info(file_path)
+            if ext == ".docx":
+                from app.services.docx_extractor import extract_docx_info
+                full_text, _ = extract_docx_info(file_path)
+            else:
+                from app.services.pdf_extractor import extract_pdf_info
+                full_text, _ = extract_pdf_info(file_path)
         except Exception:
             full_text = document.text_preview or ""
     else:
         full_text = document.text_preview or ""
+
 
     from app.services.rag_engine import summarize_document
     data = summarize_document(text=full_text, filename=fname, language=language)

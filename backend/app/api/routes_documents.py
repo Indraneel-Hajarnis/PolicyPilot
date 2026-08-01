@@ -39,6 +39,16 @@ def delete_document(document_id: int, db: Session = Depends(get_db)):
     document = db.query(DocumentRecord).filter(DocumentRecord.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Remove from FAISS vector store
+    try:
+        from app.services.rag_engine import _get_vector_store
+        vs = _get_vector_store()
+        if vs:
+            vs.delete(document_id)
+    except Exception as exc:
+        pass
+
     db.delete(document)
     db.commit()
     return {"message": "Document deleted successfully", "id": document_id}
@@ -64,7 +74,7 @@ def download_document(document_id: int, db: Session = Depends(get_db)):
     )
 
 
-# ── Document Status (SRS Section 3.5, FR5) ───────────────────────────────────
+# ── Document Status & Relationships (SRS Section 3.5, FR5) ──────────────────
 
 @router.patch("/{document_id}/status")
 def update_document_status(document_id: int, payload: StatusUpdate, db: Session = Depends(get_db)):
@@ -84,3 +94,40 @@ def update_document_status(document_id: int, payload: StatusUpdate, db: Session 
     db.commit()
     db.refresh(document)
     return {"message": f"Status updated to '{payload.status}'", "id": document_id, "status": payload.status}
+
+
+@router.get("/{document_id}/relationships")
+def get_document_relationships(document_id: int, db: Session = Depends(get_db)):
+    """Return incoming and outgoing relationships for a document."""
+    from app.db.models import DocumentRelationship
+    document = db.query(DocumentRecord).filter(DocumentRecord.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    outgoing = db.query(DocumentRelationship).filter(DocumentRelationship.source_document_id == document_id).all()
+    incoming = db.query(DocumentRelationship).filter(DocumentRelationship.target_document_id == document_id).all()
+
+    return {
+        "document_id": document_id,
+        "outgoing": [
+            {
+                "id": r.id,
+                "target_document_id": r.target_document_id,
+                "target_title": r.target_document.original_name if r.target_document else None,
+                "relation_type": r.relation_type,
+                "evidence_text": r.evidence_text,
+            }
+            for r in outgoing
+        ],
+        "incoming": [
+            {
+                "id": r.id,
+                "source_document_id": r.source_document_id,
+                "source_title": r.source_document.original_name if r.source_document else None,
+                "relation_type": r.relation_type,
+                "evidence_text": r.evidence_text,
+            }
+            for r in incoming
+        ],
+    }
+
