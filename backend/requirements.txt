@@ -1,0 +1,37 @@
+# ── PolicyPilot Backend Dependencies ──
+# Install: pip install -r requirements.txt
+
+# Web framework
+fastapi==0.141.1
+uvicorn==0.52.0
+python-multipart==0.0.32
+
+# Database
+SQLAlchemy==2.0.51
+
+# Config & environment
+pydantic-settings==2.14.2
+python-dotenv==1.2.2
+
+# AI / LLM
+groq==1.6.0
+sentence-transformers==5.6.1
+langchain-text-splitters==1.1.2
+
+# Vector search
+faiss-cpu==1.14.3
+numpy==2.5.1
+
+# Document parsing
+pymupdf==1.28.0
+python-docx==1.2.0
+
+# Language detection & translation
+langdetect==1.0.9
+
+# HTTP client (bulk importer)
+requests==2.34.2
+
+# Utilities
+rich==15.0.0
+typer==0.27.0

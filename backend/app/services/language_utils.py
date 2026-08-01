@@ -76,6 +76,56 @@ def translate_text(text: str, target_language: str) -> str:
     return text
 
 
+def translate_context_for_query(context_text: str, question_lang: str) -> str:
+    """
+    Translate retrieved document context into the question's language so the
+    LLM can synthesise a grounded answer even when the PDF and the user speak
+    different languages.
+
+    Only calls the LLM when a real cross-lingual gap is detected; otherwise
+    returns the original context unchanged.
+    """
+    if not context_text or not context_text.strip():
+        return context_text
+
+    # Detect the predominant language of the retrieved context
+    context_lang = detect_language(context_text[:1500])
+
+    # No mismatch → nothing to do
+    if context_lang == question_lang:
+        return context_text
+
+    if not settings.api_key:
+        return context_text  # Cannot translate without an LLM
+
+    lang_names = {"en": "English", "hi": "Hindi (हिन्दी)", "mr": "Marathi (मराठी)"}
+    target_name = lang_names.get(question_lang, "English")
+
+    try:
+        from app.services.groq_client import GroqClient
+        client = GroqClient(api_key=settings.api_key)
+
+        # Split context into manageable chunks (Groq models have context limits)
+        # Translate at most ~6000 chars to avoid token overflow
+        truncated = context_text[:6000]
+        prompt = (
+            f"You are a precise document translator. Translate the following government policy "
+            f"document excerpts into {target_name}. Preserve all official terms, reference numbers, "
+            f"dates, and section headings exactly. Maintain the original structure and formatting "
+            f"(including [Doc #...] prefixes). Output ONLY the translated text, no commentary.\n\n"
+            f"TEXT TO TRANSLATE:\n{truncated}"
+        )
+        translated = client.generate(prompt, model="llama-3.1-8b-instant").strip()
+        if translated and len(translated) > 50:
+            logger.info("Translated context from '%s' to '%s' (%d chars)",
+                        context_lang, question_lang, len(translated))
+            return translated
+    except Exception as exc:
+        logger.warning("Context translation failed: %s", exc)
+
+    return context_text
+
+
 def translate_and_expand_query(query: str, target_lang: str = "mr") -> str:
     """
     Expand query with cross-lingual Marathi terms to ensure robust retrieval over Marathi PDFs.

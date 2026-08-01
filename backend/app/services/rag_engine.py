@@ -124,6 +124,16 @@ def answer_question(
     confidence = 0.0
     conflicts = []
 
+    # 0. Detect the actual language of the user's question
+    #    (the `language` param is the UI-selected preference; auto-detect overrides
+    #     it when the user actually types in a different language)
+    from app.services.language_utils import detect_language as _detect_lang
+    question_lang = _detect_lang(question)
+    if question_lang == "en":
+        # Fall back to UI-selected language if auto-detect says English
+        # (short English phrases are common even from non-English speakers)
+        question_lang = language or "en"
+
     # 1. Retrieve relevant chunks with cross-lingual query expansion
     embedder = _get_embedder()
     vs = _get_vector_store()
@@ -131,7 +141,7 @@ def answer_question(
     if embedder and vs and vs.index and vs.index.ntotal > 0:
         try:
             from app.services.language_utils import translate_and_expand_query
-            search_query = translate_and_expand_query(question, target_lang=language)
+            search_query = translate_and_expand_query(question, target_lang=question_lang)
             q_emb = embedder.embed([search_query])[0]
             hits = vs.search(q_emb, top_k=8, document_id=document_id)
 
@@ -164,28 +174,39 @@ def answer_question(
                         prefix += f" [GR: {s['document_number']}]"
                     context_passages.append(f"{prefix}\n{s['text']}")
                 context = "\n\n---\n\n".join(context_passages)
+
+                # ── Cross-lingual context translation ──
+                # If the question language differs from the retrieved chunks'
+                # language, translate the context so the LLM can properly
+                # synthesise an answer in the user's language.
+                try:
+                    from app.services.language_utils import translate_context_for_query
+                    context = translate_context_for_query(context, question_lang)
+                except Exception as exc:
+                    logger.warning("Cross-lingual context translation skipped: %s", exc)
+
         except Exception as exc:
             logger.warning("Retrieval error: %s", exc)
 
-    # 2. Language instruction
+    # 2. Language instruction — always respond in the question's language
     lang_map = {
         "hi": "Respond ONLY in Hindi (हिन्दी). Use formal register.",
         "mr": "Respond ONLY in Marathi (मराठी). Use formal register.",
     }
-    lang_instr = lang_map.get(language, "Respond in clear, professional English.")
+    lang_instr = lang_map.get(question_lang, "Respond in clear, professional English.")
 
     # 3. LLM generation or grounded refusal
     active_key = settings.api_key
 
     if not sources or not context.strip():
         # SRS Grounded Refusal — NO ungrounded parametric general knowledge
-        if language == "mr":
+        if question_lang == "mr":
             answer = (
                 "⚠️ **शासकीय दस्तऐवज उपलब्ध नाहीत (Insufficient Authenticated Evidence)**\n\n"
                 "तुमच्या प्रश्नासाठी केंद्रीय भांडारामध्ये संबंधित अधिकृत शासन निर्णय किंवा परिपत्रकाचा संदर्भ आढळला नाही. "
                 "अचूक माहितीसाठी कृपया संबंधित शासन निर्णय अपलोड करा."
             )
-        elif language == "hi":
+        elif question_lang == "hi":
             answer = (
                 "⚠️ **प्रमाणित दस्तावेज़ उपलब्ध नहीं हैं (Insufficient Authenticated Evidence)**\n\n"
                 "आपके प्रश्न के लिए केंद्रीय रिपोजिटरी में कोई प्रासंगिक सरकारी संकल्प या परिपत्रक नहीं मिला। "
