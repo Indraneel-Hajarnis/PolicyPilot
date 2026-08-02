@@ -22,9 +22,9 @@ export default function Navbar() {
     { key: 'navChat', path: '/chat', icon: MessageSquareText },
     { key: 'navSummary', path: '/summary', icon: FileText },
     { key: 'navDocuments', path: '/documents', icon: Library },
-    { key: 'Compare', path: '/compare', icon: GitCompareArrows },
+    { key: 'navCompare', path: '/compare', icon: GitCompareArrows },
     { key: 'navAnalytics', path: '/analytics', icon: BarChart3 },
-    { key: 'Repository', path: '/repository', icon: Database },
+    { key: 'navRepository', path: '/repository', icon: Database },
   ];
 
   const handleLogout = () => {
@@ -124,7 +124,7 @@ export default function Navbar() {
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 text-xs text-rose-400 font-semibold"
               >
-                <LogOut className="w-3.5 h-3.5" /> Sign Out
+                <LogOut className="w-3.5 h-3.5" /> {t('signOut')}
               </button>
             </div>
           )}

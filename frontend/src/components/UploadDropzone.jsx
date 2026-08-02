@@ -4,6 +4,68 @@ import { UploadCloud, FileText, CheckCircle2, AlertCircle, Loader2, ChevronDown,
 import { uploadDocument } from '../api/client';
 import { useLanguage } from '../context/LanguageContext';
 
+// ── Lightweight client-side PDF text extractor (first 3KB of readable text) ──
+async function extractPdfHeaderText(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    // Decode a chunk of the binary as latin-1 to find readable text patterns
+    const chunk = new TextDecoder('latin1').decode(bytes.slice(0, 8000));
+    return chunk;
+  } catch {
+    return '';
+  }
+}
+
+// ── Heuristic parsers ─────────────────────────────────────────────────────────
+function guessGrNumber(text) {
+  // Matches patterns like: GR-2024/CR-102, No.GR/2024/102, शासन निर्णय क्र.
+  const patterns = [
+    /(?:GR[\/\-\s]?(?:No\.?)?\s*)([A-Z0-9\/\-]+)/i,
+    /(?:Government Resolution No\.?\s*)([A-Z0-9\/\-]+)/i,
+    /(?:G\.R\. No\.?\s*)([A-Z0-9\/\-]+)/i,
+    /(?:शासन निर्णय क्र[.:]\s*)([A-Z0-9\/\-]+)/i,
+    /(?:शासन परिपत्रक क्र[.:]\s*)([A-Z0-9\/\-]+)/i,
+    /(?:GR\/|CR\/)([A-Z0-9\/\-]+)/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m && m[1] && m[1].length > 2 && m[1].length < 30) {
+      return m[1].trim().replace(/\s+/g, '');
+    }
+  }
+  return '';
+}
+
+function guessDepartment(text) {
+  const patterns = [
+    /(?:Department of|Department:)\s*([A-Za-z &]+)/i,
+    /(?:विभाग[:\s]+)([^\n,।]+)/,
+    /(?:खाते[:\s]+)([^\n,।]+)/,
+    /(?:Ministry of)\s*([A-Za-z &]+)/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m && m[1] && m[1].trim().length > 3) {
+      return m[1].trim().slice(0, 60);
+    }
+  }
+  return '';
+}
+
+function guessCategory(text) {
+  const lower = text.toLowerCase();
+  if (/government resolution|शासन निर्णय|शासकीय ठराव/.test(lower)) return 'Resolution';
+  if (/circular|परिपत्र/.test(lower)) return 'Circular';
+  if (/notification|अधिसूचना/.test(lower)) return 'Notification';
+  if (/amendment|संशोधन|दुरुस्ती/.test(lower)) return 'Amendment';
+  if (/guideline|मार्गदर्शक/.test(lower)) return 'Guidelines';
+  if (/policy|नीति|धोरण/.test(lower)) return 'Policy';
+  return '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function UploadDropzone({ onUploadSuccess }) {
   const { t } = useLanguage();
   const [uploading, setUploading] = useState(false);
@@ -16,12 +78,48 @@ export default function UploadDropzone({ onUploadSuccess }) {
   const [department, setDepartment] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
   const [category, setCategory] = useState('');
+  const [autoFilling, setAutoFilling] = useState(false);
+
+  // ── Auto-fill metadata from PDF on drop ──────────────────────────────────
+  const autoFillFromFile = async (file) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) return {};
+    setAutoFilling(true);
+    try {
+      const text = await extractPdfHeaderText(file);
+      const grNum = guessGrNumber(text);
+      const dept = guessDepartment(text);
+      const cat = guessCategory(text);
+      if (grNum || dept || cat) {
+        setShowMetadata(true); // expand so user can see what was filled
+        if (grNum) setDocumentNumber(grNum);
+        if (dept) setDepartment(dept);
+        if (cat) setCategory(cat);
+      }
+      // Return the extracted values directly so onDrop can use them
+      // immediately without waiting for React state to re-render
+      return { grNum, dept, cat };
+    } catch {
+      return {};
+    } finally {
+      setAutoFilling(false);
+    }
+  };
 
   const onDrop = useCallback(
     async (acceptedFiles) => {
       if (acceptedFiles.length === 0) return;
 
       const file = acceptedFiles[0];
+
+      // Auto-fill metadata before upload starts
+      // Use returned values directly to avoid React stale-closure issue
+      const extracted = await autoFillFromFile(file);
+
+      // Merge: prefer any existing user-typed value, fall back to auto-extracted
+      const finalDept = department.trim() || extracted.dept || '';
+      const finalGr = documentNumber.trim() || extracted.grNum || '';
+      const finalCat = category.trim() || extracted.cat || '';
+
       setUploading(true);
       setProgress(0);
       setError(null);
@@ -29,9 +127,9 @@ export default function UploadDropzone({ onUploadSuccess }) {
 
       try {
         const metadata = {
-          department: department.trim() || null,
-          document_number: documentNumber.trim() || null,
-          category: category.trim() || null,
+          department: finalDept || null,
+          document_number: finalGr || null,
+          category: finalCat || null,
         };
 
         const res = await uploadDocument(
@@ -101,14 +199,14 @@ export default function UploadDropzone({ onUploadSuccess }) {
               {isDragActive ? t('uploadDropzoneDropHere') : t('uploadDropzoneTitle')}
             </h3>
             <p className="text-sm text-white/50 max-w-sm mx-auto">
-              Drag & drop your file here, or click to browse (PDF & DOCX supported)
+              {t('uploadDropzoneInstructions')}
             </p>
           </div>
 
           {/* File format indicator */}
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
             <FileText className="w-3.5 h-3.5 text-teal-400" />
-            <span>PDF & DOCX Formats Supported</span>
+            <span>{t('uploadDropzonePdfSupported')}</span>
           </div>
 
           {/* Progress bar */}
@@ -137,7 +235,8 @@ export default function UploadDropzone({ onUploadSuccess }) {
         >
           <span className="flex items-center gap-2">
             <Tag className="w-4 h-4 text-teal-400" />
-            Add Document Metadata (Optional — Auto-extracted if empty)
+            {t('addMetadata')}
+            {autoFilling && <Loader2 className="w-3 h-3 animate-spin text-teal-400" />}
           </span>
           {showMetadata ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -146,44 +245,44 @@ export default function UploadDropzone({ onUploadSuccess }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-slate-800/80 mt-3">
             <div className="space-y-1">
               <label className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                <Building2 className="w-3 h-3 text-teal-400" /> Department
+                <Building2 className="w-3 h-3 text-teal-400" /> {t('departmentLabel')}
               </label>
               <input
                 type="text"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                placeholder="e.g. Higher & Technical Education"
+                placeholder={t('departmentPlaceholder')}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
               />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                <Hash className="w-3 h-3 text-teal-400" /> Document / GR Number
+                <Hash className="w-3 h-3 text-teal-400" /> {t('grNumberLabel')}
               </label>
               <input
                 type="text"
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
-                placeholder="e.g. GR-2024/CR-102"
+                placeholder={t('grNumberPlaceholder')}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
               />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                <Tag className="w-3 h-3 text-teal-400" /> Category
+                <Tag className="w-3 h-3 text-teal-400" /> {t('categoryLabel')}
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
               >
-                <option value="">Auto-Detect Category</option>
-                <option value="Resolution">Resolution (GR)</option>
-                <option value="Circular">Circular</option>
-                <option value="Policy">Policy</option>
-                <option value="Notification">Notification</option>
-                <option value="Amendment">Amendment</option>
-                <option value="Guidelines">Guidelines</option>
+                <option value="">{t('categoryAutoDetect')}</option>
+                <option value="Resolution">{t('catResolution')}</option>
+                <option value="Circular">{t('catCircular')}</option>
+                <option value="Policy">{t('catPolicy')}</option>
+                <option value="Notification">{t('catNotification')}</option>
+                <option value="Amendment">{t('catAmendment')}</option>
+                <option value="Guidelines">{t('catGuidelines')}</option>
               </select>
             </div>
           </div>
@@ -195,7 +294,7 @@ export default function UploadDropzone({ onUploadSuccess }) {
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3 text-emerald-300 text-sm animate-fade-in">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
           <span>
-            Uploaded <strong>{successFile}</strong> successfully. Indexing complete.
+            <strong>{successFile}</strong> {t('uploadedSuccessMsg')}
           </span>
         </div>
       )}
