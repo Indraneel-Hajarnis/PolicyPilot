@@ -1,5 +1,7 @@
 import logging
 from pathlib import Path
+from sqlalchemy.orm import Session
+
 from app.config import settings
 from app.db.models import DocumentRecord, RepositorySource
 from app.services.rag_engine import index_document
