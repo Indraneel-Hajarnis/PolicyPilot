@@ -30,10 +30,10 @@ class GroqClient:
         if not key:
             raise ValueError("Groq API key is empty or not configured.")
 
-        # Prioritize ultra-fast llama-3.1-8b-instant for instant answers (~0.4s)
+        # Prioritize ultra-fast llama-3.1-8b-instant for instant answers (~0.3s)
         requested_model = model or settings.model_name or "llama-3.1-8b-instant"
         models_to_try = [requested_model]
-        for fallback in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"]:
+        for fallback in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]:
             if fallback not in models_to_try:
                 models_to_try.append(fallback)
 
@@ -55,7 +55,7 @@ class GroqClient:
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers=headers,
                     json=payload,
-                    timeout=15,
+                    timeout=8,
                 )
                 response.raise_for_status()
                 return response.json()["choices"][0]["message"]["content"]

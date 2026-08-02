@@ -13,6 +13,7 @@ from app.api.routes_repository import router as repository_router
 from app.api.routes_summary import router as summary_router
 from app.api.routes_upload import router as upload_router
 from app.config import settings
+import threading
 from app.db.database import init_db
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
@@ -36,6 +37,19 @@ app.include_router(compare_router, prefix="/api")
 app.include_router(repository_router, prefix="/api")
 
 init_db()
+
+
+@app.on_event("startup")
+def prewarm_models():
+    """Background pre-warm for SentenceTransformer embedder & FAISS store."""
+    def _warm():
+        try:
+            from app.services.rag_engine import _get_embedder, _get_vector_store
+            _get_embedder()
+            _get_vector_store()
+        except Exception:
+            pass
+    threading.Thread(target=_warm, daemon=True).start()
 
 
 @app.get("/")

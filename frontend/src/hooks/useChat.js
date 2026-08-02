@@ -86,7 +86,7 @@ export function useChat() {
           }
         });
       } catch (err) {
-        const errorMsg = err.response?.data?.error || 'Failed to get a response. Please try again.';
+        const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to get a response. Please try again.';
         setError(errorMsg);
         const errorMessage = {
           id: Date.now() + 1,
