@@ -27,7 +27,7 @@ export default function ComparePage() {
       const data = await compareDocuments(parseInt(docIdA), parseInt(docIdB), language);
       setResult(data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Comparison failed. Please try again.');
+      setError(err.response?.data?.detail || t('compareFailed'));
     } finally {
       setLoading(false);
     }
@@ -38,11 +38,11 @@ export default function ComparePage() {
       {/* Header */}
       <div className="space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-xs font-bold text-indigo-300 shadow-sm">
-          <GitCompareArrows className="w-4 h-4 text-indigo-400" /> Document Comparison
+          <GitCompareArrows className="w-4 h-4 text-indigo-400" /> {t('comparePageBadge')}
         </div>
-        <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">Compare Documents</h1>
+        <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">{t('comparePageTitle')}</h1>
         <p className="section-subtitle text-slate-400 max-w-3xl">
-          Select two policy documents to compare their content, identify differences, and detect conflicting provisions.
+          {t('comparePageSubtitle')}
         </p>
       </div>
 
@@ -50,13 +50,13 @@ export default function ComparePage() {
       <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-6 shadow-2xl backdrop-blur-xl max-w-4xl space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Document A</label>
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">{t('compareDocA')}</label>
             <select
               value={docIdA}
               onChange={(e) => setDocIdA(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-teal-400 transition-all"
             >
-              <option value="">Select document...</option>
+              <option value="">{t('compareSelectDoc')}</option>
               {documents.map((doc) => (
                 <option key={doc.id} value={doc.id}>{doc.original_name || doc.filename}</option>
               ))}
@@ -68,13 +68,13 @@ export default function ComparePage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Document B</label>
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">{t('compareDocB')}</label>
             <select
               value={docIdB}
               onChange={(e) => setDocIdB(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-teal-400 transition-all"
             >
-              <option value="">Select document...</option>
+              <option value="">{t('compareSelectDoc')}</option>
               {documents.filter((d) => String(d.id) !== docIdA).map((doc) => (
                 <option key={doc.id} value={doc.id}>{doc.original_name || doc.filename}</option>
               ))}
@@ -84,7 +84,7 @@ export default function ComparePage() {
 
         <div className="flex items-center gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-400">Language</label>
+            <label className="text-xs font-semibold text-slate-400">{t('compareLanguageLabel')}</label>
             <LanguageSelector selectedLanguage={language} onChange={setLanguage} />
           </div>
           <button
@@ -93,7 +93,7 @@ export default function ComparePage() {
             className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 disabled:opacity-40 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 mt-auto"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <GitCompareArrows className="w-5 h-5" />}
-            Compare
+            {t('compareBtn')}
           </button>
         </div>
       </div>
@@ -109,8 +109,8 @@ export default function ComparePage() {
       {loading && (
         <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-12 text-center space-y-4 animate-pulse shadow-2xl max-w-4xl">
           <Loader2 className="w-10 h-10 animate-spin text-indigo-400 mx-auto" />
-          <h3 className="text-lg font-bold text-white">Analyzing Documents...</h3>
-          <p className="text-xs text-slate-400">Comparing content and identifying differences</p>
+          <h3 className="text-lg font-bold text-white">{t('compareAnalyzing')}</h3>
+          <p className="text-xs text-slate-400">{t('compareAnalyzingDesc')}</p>
         </div>
       )}
 
@@ -128,7 +128,7 @@ export default function ComparePage() {
           {result.similarities?.length > 0 && (
             <div className="bg-slate-900/90 border border-emerald-500/20 rounded-2xl p-6 space-y-3">
               <h3 className="text-sm font-bold text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Similarities ({result.similarities.length})
+                <CheckCircle2 className="w-4 h-4" /> {t('compareSimilarities')} ({result.similarities.length})
               </h3>
               <ul className="space-y-2">
                 {result.similarities.map((s, i) => (
@@ -142,7 +142,7 @@ export default function ComparePage() {
           {result.differences?.length > 0 && (
             <div className="bg-slate-900/90 border border-amber-500/20 rounded-2xl p-6 space-y-3">
               <h3 className="text-sm font-bold text-amber-300 flex items-center gap-2">
-                <GitCompareArrows className="w-4 h-4" /> Differences ({result.differences.length})
+                <GitCompareArrows className="w-4 h-4" /> {t('compareDifferences')} ({result.differences.length})
               </h3>
               <div className="space-y-3">
                 {result.differences.map((d, i) => (
@@ -150,11 +150,11 @@ export default function ComparePage() {
                     <h4 className="text-xs font-bold text-white">{d.aspect}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                       <div className="p-2.5 rounded-lg bg-teal-500/5 border border-teal-500/20">
-                        <span className="text-teal-400 font-semibold text-[10px] uppercase">Doc A:</span>
+                        <span className="text-teal-400 font-semibold text-[10px] uppercase">{t('compareDocALabel')}</span>
                         <p className="text-slate-300 mt-1">{d.doc_a}</p>
                       </div>
                       <div className="p-2.5 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
-                        <span className="text-indigo-400 font-semibold text-[10px] uppercase">Doc B:</span>
+                        <span className="text-indigo-400 font-semibold text-[10px] uppercase">{t('compareDocBLabel')}</span>
                         <p className="text-slate-300 mt-1">{d.doc_b}</p>
                       </div>
                     </div>
@@ -168,7 +168,7 @@ export default function ComparePage() {
           {result.key_changes?.length > 0 && (
             <div className="bg-slate-900/90 border border-rose-500/20 rounded-2xl p-6 space-y-3">
               <h3 className="text-sm font-bold text-rose-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> Key Changes ({result.key_changes.length})
+                <AlertTriangle className="w-4 h-4" /> {t('compareKeyChanges')} ({result.key_changes.length})
               </h3>
               <ul className="space-y-2">
                 {result.key_changes.map((c, i) => (
@@ -182,7 +182,7 @@ export default function ComparePage() {
           {result.conflict_areas?.length > 0 && (
             <div className="bg-rose-500/5 border border-rose-500/30 rounded-2xl p-6 space-y-3">
               <h3 className="text-sm font-bold text-rose-400 flex items-center gap-2">
-                <XCircle className="w-4 h-4" /> ⚠️ Conflicting Provisions ({result.conflict_areas.length})
+                <XCircle className="w-4 h-4" /> {t('compareConflicts')} ({result.conflict_areas.length})
               </h3>
               <ul className="space-y-2">
                 {result.conflict_areas.map((c, i) => (
@@ -195,7 +195,7 @@ export default function ComparePage() {
           {/* Recommendation */}
           {result.recommendation && (
             <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-6">
-              <h3 className="text-sm font-bold text-slate-200 mb-2">💡 Recommendation</h3>
+              <h3 className="text-sm font-bold text-slate-200 mb-2">{t('compareRecommendation')}</h3>
               <p className="text-xs text-slate-300 leading-relaxed">{result.recommendation}</p>
             </div>
           )}

@@ -65,14 +65,13 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat, refreshTr
 
   const formatDate = (iso) => {
     if (!iso) return '';
-    // Ensure the timestamp is treated as UTC (append 'Z' if no timezone info)
     const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
     const d = new Date(normalized);
     const now = new Date();
     const diff = now - d;
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 60000) return t('justNow');
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}${t('minsAgo')}`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}${t('hrsAgo')}`;
     return d.toLocaleDateString();
   };
 
@@ -85,7 +84,7 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat, refreshTr
       >
         <span className="flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-teal-400" />
-          Chat History
+          {t('chatHistory')}
         </span>
         {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
@@ -98,7 +97,7 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat, refreshTr
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-300 text-xs font-semibold hover:bg-teal-500/20 transition-all"
           >
             <MessageSquarePlus className="w-3.5 h-3.5" />
-            New Chat
+            {t('newChat')}
           </button>
 
           {/* Sessions list */}
@@ -108,7 +107,7 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat, refreshTr
             </div>
           ) : sessions.length === 0 ? (
             <p className="text-[10px] text-slate-500 text-center py-3 italic">
-              No previous chats
+              {t('noPreviousChats')}
             </p>
           ) : (
             <div className="space-y-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
@@ -126,7 +125,7 @@ export default function ChatHistorySidebar({ onLoadSession, onNewChat, refreshTr
                     className="min-w-0 flex-1 text-left cursor-pointer"
                   >
                     <p className="text-[11px] text-slate-200 font-medium truncate">
-                      {session.title || 'Untitled Chat'}
+                      {session.title || t('untitledChat')}
                     </p>
                     <p className="text-[9px] text-slate-500 flex items-center gap-1">
                       {session.message_count > 0 ? `${session.message_count} msgs · ` : ''}{formatDate(session.updated_at)}

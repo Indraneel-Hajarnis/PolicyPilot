@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Database, Globe, FolderGit2, Download, Loader2, ArrowLeft, FolderOpen, FileText, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { getRepositorySources, browseGitHubRepo, importFromRepository, seedRepository } from '../api/client';
-
+import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 
 const TAB_ICONS = { github: FolderGit2, portal: Globe };
 
 export default function RepositoryPage() {
   const toast = useToast();
+  const { t } = useLanguage();
   const [sources, setSources] = useState([]);
   const [activeTab, setActiveTab] = useState('github_mahgrs');
   const [ghItems, setGhItems] = useState([]);
@@ -33,7 +34,7 @@ export default function RepositoryPage() {
       const data = await browseGitHubRepo(path);
       setGhItems(data.items || []);
     } catch (err) {
-      toast.error('Failed to browse GitHub repository');
+      toast.error(t('repoBrowseFailed'));
     } finally {
       setGhLoading(false);
     }
@@ -41,16 +42,16 @@ export default function RepositoryPage() {
 
   const handleImport = async (item) => {
     if (!item.download_url) {
-      toast.error('No download URL available for this item');
+      toast.error(t('repoNoDownload'));
       return;
     }
     setImporting(item.path);
     try {
       await importFromRepository(item.download_url, 'github_mahgrs', item.name);
       setImported((prev) => new Set([...prev, item.path]));
-      toast.success(`${item.name} imported successfully!`);
+      toast.success(`${item.name} ${t('repoImportSuccess')}`);
     } catch (err) {
-      toast.error(`Import failed: ${err.response?.data?.detail || err.message}`);
+      toast.error(`${t('repoImportFailed')} ${err.response?.data?.detail || err.message}`);
     } finally {
       setImporting(null);
     }
@@ -71,11 +72,11 @@ export default function RepositoryPage() {
 
   const handleSeedRepository = async () => {
     try {
-      toast.info('Seeding Maharashtra policy corpus...');
+      toast.info(t('repoSeedingMsg'));
       const res = await seedRepository();
-      toast.success(res.message || 'Central repository seeded successfully!');
+      toast.success(res.message || t('repoSeedSuccess'));
     } catch (err) {
-      toast.error(`Seeding failed: ${err.message}`);
+      toast.error(`${t('repoImportFailed')} ${err.message}`);
     }
   };
 
@@ -85,18 +86,18 @@ export default function RepositoryPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-xs font-bold text-purple-300 shadow-sm">
-            <Database className="w-4 h-4 text-purple-400" /> Centralized Repository
+            <Database className="w-4 h-4 text-purple-400" /> {t('repoPageBadge')}
           </div>
-          <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">Open Datasets</h1>
+          <h1 className="section-title text-3xl sm:text-4xl font-extrabold text-white">{t('repoPageTitle')}</h1>
           <p className="section-subtitle text-slate-400 max-w-3xl">
-            Browse and import documents from official Maharashtra Government sources and open datasets.
+            {t('repoPageSubtitle')}
           </p>
         </div>
         <button
           onClick={handleSeedRepository}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs shadow-lg shadow-purple-500/20 hover:from-purple-500 hover:to-indigo-500 transition-all shrink-0"
         >
-          <Database className="w-4 h-4" /> Seed Central Corpus
+          <Database className="w-4 h-4" /> {t('repoSeedBtn')}
         </button>
       </div>
 
@@ -145,7 +146,7 @@ export default function RepositoryPage() {
             ))}
             {ghPath && (
               <button onClick={navigateUp} className="ml-auto text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1">
-                <ArrowLeft className="w-3 h-3" /> Back
+                <ArrowLeft className="w-3 h-3" /> {t('repoBack')}
               </button>
             )}
           </div>
@@ -157,7 +158,7 @@ export default function RepositoryPage() {
             </div>
           ) : ghItems.length === 0 ? (
             <div className="text-center py-16 text-slate-500 text-sm">
-              No files found at this path
+              {t('repoNoFiles')}
             </div>
           ) : (
             <div className="divide-y divide-slate-800">
@@ -198,7 +199,7 @@ export default function RepositoryPage() {
                     {item.type === 'file' && item.download_url && (
                       imported.has(item.path) ? (
                         <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Imported
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t('repoImported')}
                         </span>
                       ) : (
                         <button
@@ -211,7 +212,7 @@ export default function RepositoryPage() {
                           ) : (
                             <Download className="w-3 h-3" />
                           )}
-                          Import
+                          {t('repoImport')}
                         </button>
                       )
                     )}
@@ -235,10 +236,10 @@ export default function RepositoryPage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-sm shadow-lg shadow-purple-500/20 hover:from-purple-400 hover:to-indigo-400 transition-all"
               >
-                <ExternalLink className="w-4 h-4" /> Visit Portal
+                <ExternalLink className="w-4 h-4" /> {t('repoVisitPortal')}
               </a>
               <p className="text-[10px] text-slate-500 italic">
-                Documents can be downloaded from the portal and uploaded to PolicyPilot manually
+                {t('repoPortalNote')}
               </p>
             </div>
           ))}

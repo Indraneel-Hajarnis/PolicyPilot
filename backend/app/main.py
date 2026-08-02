@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_analytics import router as analytics_router
@@ -59,4 +61,4 @@ init_db()
 
 @app.get("/")
 def read_root():
-    return {"message": "PolicyPilot API is running"}
+    return {"message": "PolicyPilot API is running"}
