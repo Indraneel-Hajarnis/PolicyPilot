@@ -128,29 +128,55 @@ def translate_context_for_query(context_text: str, question_lang: str) -> str:
 
 def translate_and_expand_query(query: str, target_lang: str = "mr") -> str:
     """
-    Expand query with cross-lingual Marathi terms to ensure robust retrieval over Marathi PDFs.
+    Expand query with cross-lingual terms in ALL supported languages (EN, HI, MR)
+    so FAISS retrieval works regardless of the PDF's language.
+
+    For example, a Hindi question will also include English and Marathi terms,
+    ensuring chunks from English or Marathi PDFs are retrieved.
     """
     query_clean = query.strip()
     expansions = [query_clean]
 
-    # Heuristic glossary lookup
+    # Detect which language the query is actually in
+    query_lang = detect_language(query_clean)
+
+    # Heuristic glossary lookup (English → Marathi)
     query_lower = query_clean.lower()
     for eng_term, mr_term in MARATHI_GOVT_GLOSSARY.items():
         if eng_term in query_lower:
             expansions.append(mr_term)
 
-    # Use LLM query rewrite if API key is present
+    # Reverse glossary lookup (Marathi → English)
+    for eng_term, mr_term in MARATHI_GOVT_GLOSSARY.items():
+        if mr_term in query_clean:
+            expansions.append(eng_term)
+
+    # Use LLM to translate the query into the OTHER languages for cross-lingual retrieval
     if settings.api_key:
         try:
             from app.services.groq_client import GroqClient
             client = GroqClient(api_key=settings.api_key)
+
+            # Build the translation targets based on the query's own language
+            if query_lang == "en":
+                translate_targets = "Marathi (मराठी) and Hindi (हिन्दी)"
+            elif query_lang == "mr":
+                translate_targets = "English and Hindi (हिन्दी)"
+            elif query_lang == "hi":
+                translate_targets = "English and Marathi (मराठी)"
+            else:
+                translate_targets = "English, Marathi (मराठी), and Hindi (हिन्दी)"
+
             prompt = (
-                f"Rewrite this user query into a concise search query containing both English and Marathi (Devanagari) terms for government resolutions (GRs).\n"
+                f"Rewrite this user query into a concise multi-lingual search query. "
+                f"The original query is in {'English' if query_lang == 'en' else 'Marathi' if query_lang == 'mr' else 'Hindi'}. "
+                f"Add equivalent key terms in {translate_targets} so the query can match documents in any of these languages. "
+                f"Include official government terminology where applicable.\n"
                 f"User Question: \"{query_clean}\"\n"
-                f"Return ONLY the rewritten query line, nothing else."
+                f"Return ONLY the rewritten multi-lingual query line, nothing else."
             )
             llm_expanded = client.generate(prompt, model="llama-3.1-8b-instant").strip()
-            if llm_expanded and len(llm_expanded) < 250:
+            if llm_expanded and len(llm_expanded) < 400:
                 expansions.append(llm_expanded)
         except Exception as exc:
             logger.warning("LLM query expansion failed: %s", exc)

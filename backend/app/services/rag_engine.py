@@ -141,9 +141,39 @@ def answer_question(
     if embedder and vs and vs.index and vs.index.ntotal > 0:
         try:
             from app.services.language_utils import translate_and_expand_query
+
+            # ── Primary search: cross-lingual expanded query ──
             search_query = translate_and_expand_query(question, target_lang=question_lang)
             q_emb = embedder.embed([search_query])[0]
             hits = vs.search(q_emb, top_k=8, document_id=document_id)
+
+            # ── Secondary search: translate question to English for English-PDF retrieval ──
+            # When the question is in Hindi/Marathi, documents indexed in English
+            # may not match well. A separate English-translated search fixes this.
+            if question_lang != "en" and settings.api_key:
+                try:
+                    from app.services.groq_client import GroqClient
+                    client = GroqClient(api_key=settings.api_key)
+                    en_prompt = (
+                        f"Translate the following question into English. "
+                        f"Output ONLY the English translation, nothing else.\n\n"
+                        f"Question: {question}"
+                    )
+                    en_question = client.generate(en_prompt, model="llama-3.1-8b-instant").strip()
+                    if en_question and len(en_question) > 5:
+                        en_emb = embedder.embed([en_question])[0]
+                        en_hits = vs.search(en_emb, top_k=8, document_id=document_id)
+                        # Merge: add any English-search hits not already present
+                        existing_keys = {
+                            (h.get("doc_id"), h.get("chunk_index")) for h in hits
+                        }
+                        for eh in en_hits:
+                            key = (eh.get("doc_id"), eh.get("chunk_index"))
+                            if key not in existing_keys:
+                                hits.append(eh)
+                                existing_keys.add(key)
+                except Exception as exc:
+                    logger.debug("English-translated search skipped: %s", exc)
 
             min_thresh = float(getattr(settings, "similarity_threshold", 0.28))
             for hit in hits:
@@ -237,17 +267,31 @@ def answer_question(
         )
     else:
         # Context IS available — perform RAG synthesis
+        # Build cross-lingual instruction when question & PDF languages differ
+        cross_lingual_note = ""
+        from app.services.language_utils import detect_language as _detect_ctx_lang
+        context_orig_lang = _detect_ctx_lang(context[:1500])
+        if context_orig_lang != question_lang:
+            lang_names = {"en": "English", "hi": "Hindi", "mr": "Marathi"}
+            cross_lingual_note = (
+                f"\nNOTE: The retrieved policy context was originally in {lang_names.get(context_orig_lang, context_orig_lang)} "
+                f"and may have been translated. Use the information faithfully to answer in "
+                f"{lang_names.get(question_lang, question_lang)}. Preserve factual accuracy from the original text.\n"
+            )
+
         system_prompt = (
             f"You are PolicyPilot, an expert AI assistant for analyzing government policy, insurance, legal, and compliance documents.\n\n"
             f"RETRIEVED POLICY CONTEXT (from semantic search over authenticated repository documents):\n"
             f"{'=' * 60}\n"
             f"{context}\n"
             f"{'=' * 60}\n\n"
-            f"{lang_instr}\n\n"
+            f"{lang_instr}\n"
+            f"{cross_lingual_note}\n"
             "INSTRUCTIONS:\n"
             "- Use the retrieved context as your ONLY source of truth. Rely strictly on facts mentioned in the context.\n"
             "- Provide clear, structured, professional answers using Markdown.\n"
             "- Always cite specific Page Numbers and GR Document Numbers when referencing facts.\n"
+            "- If the context is in a different language than requested, translate the key findings accurately into the response language while preserving official terms, reference numbers, and dates.\n"
             "- If the context contains conflicting provisions between different documents or dates, highlight the conflict clearly under a '⚠️ **Conflicting Policy Provisions**' section.\n"
             "- Never fabricate policies or speculate beyond the provided text."
         )
