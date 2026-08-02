@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 
 # pyrefly: ignore [missing-import]
 from sqlalchemy import create_engine, inspect as sa_inspect, text
@@ -7,7 +7,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.database_url, connect_args={'check_same_thread': False})
+engine = create_engine(settings.resolved_database_url, connect_args={'check_same_thread': False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 logger = logging.getLogger('db.migration')

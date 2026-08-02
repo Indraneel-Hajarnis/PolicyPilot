@@ -38,7 +38,7 @@ def _get_vector_store():
     if _vector_store is None:
         try:
             from app.services.vector_store import VectorStore
-            _vector_store = VectorStore(Path(settings.vector_store_path))
+            _vector_store = VectorStore(Path(settings.resolved_vector_store_path))
             logger.info("FAISS VectorStore ready (%d vectors)", _vector_store.index.ntotal if _vector_store.index else 0)
         except Exception as exc:
             logger.warning("VectorStore unavailable: %s", exc)

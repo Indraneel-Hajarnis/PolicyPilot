@@ -9,12 +9,13 @@ from pydantic import BaseModel
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db.database import get_db
 from app.db.models import DocumentRecord
 from app.db.schemas import DocumentRead
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-UPLOAD_DIR = Path("./data/uploads")
+UPLOAD_DIR = Path(settings.resolved_upload_dir)
 
 
 class StatusUpdate(BaseModel):

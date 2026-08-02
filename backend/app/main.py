@@ -24,6 +24,10 @@ from app.services.seed_repository import seed_central_repository
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        # Check-or-seed: load pre-computed FAISS or seed from bundled docs
+        from app.services.startup import initialize_data
+        initialize_data()
+
         ensure_default_users()
         db = SessionLocal()
         try:

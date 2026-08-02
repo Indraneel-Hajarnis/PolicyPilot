@@ -24,6 +24,7 @@ import requests
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db.database import SessionLocal
 from app.db.models import DocumentRecord
 from app.services.language_utils import detect_language
@@ -32,7 +33,7 @@ logger = logging.getLogger("bulk_importer")
 
 GITHUB_API_BASE = "https://api.github.com/repos/orgpedia/mahGRs/contents"
 RAW_BASE = "https://raw.githubusercontent.com/orgpedia/mahGRs/main"
-UPLOAD_DIR = Path("./data/uploads")
+UPLOAD_DIR = Path(settings.resolved_upload_dir)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Rate-limit: GitHub API allows 60 requests/hour unauthenticated

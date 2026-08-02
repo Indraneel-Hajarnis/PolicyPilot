@@ -5,11 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db.database import get_db
 from app.db.models import DocumentRecord
 
 router = APIRouter(prefix="/summary", tags=["summary"])
-UPLOAD_DIR = Path("./data/uploads")
+UPLOAD_DIR = Path(settings.resolved_upload_dir)
 
 
 @router.get("/{document_id}")

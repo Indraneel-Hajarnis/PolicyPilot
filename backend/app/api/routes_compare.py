@@ -20,7 +20,7 @@ from app.db.models import DocumentRecord
 
 logger = logging.getLogger("api.compare")
 router = APIRouter(prefix="/compare", tags=["compare"])
-UPLOAD_DIR = Path("./data/uploads")
+UPLOAD_DIR = Path(settings.resolved_upload_dir)
 
 
 class CompareRequest(BaseModel):

@@ -1,13 +1,12 @@
 import logging
 from pathlib import Path
-from sqlalchemy.orm import Session
-
+from app.config import settings
 from app.db.models import DocumentRecord, RepositorySource
 from app.services.rag_engine import index_document
 from app.services.status_inference import infer_document_relationships
 
 logger = logging.getLogger("seed_repository")
-UPLOAD_DIR = Path("./data/uploads")
+UPLOAD_DIR = Path(settings.resolved_upload_dir)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 SEED_DOCUMENTS = [

@@ -18,13 +18,19 @@ dist/
 build/
 .output/
 
-# Application Data & Uploads
+# Application Data & Uploads (runtime artifacts)
 data/
 uploads/
 *.db
 *.sqlite
 *.sqlite3
 faiss_index/
+
+# KEEP seed data and scripts tracked in Git
+!backend/seed_data/
+!backend/seed_data/**
+!backend/scripts/
+!backend/scripts/**
 
 # Logs & Temporary Files
 *.log
@@ -38,9 +44,8 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Backend runtime data (explicitly ignored)
 backend/data/faiss_index/
 backend/data/policypilot.db
 backend/data/uploads/
 backend/app/api/__pycache__/*.pyc
-backend/data/faiss_index/index.faiss
-backend/data/policypilot.db

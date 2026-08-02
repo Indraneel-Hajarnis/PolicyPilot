@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db.database import get_db
 from app.db.models import DocumentRecord
 from app.db.schemas import DocumentRead
@@ -15,7 +16,7 @@ from app.services.pdf_extractor import extract_pdf_info
 
 logger = logging.getLogger("api.upload")
 router = APIRouter(prefix="/upload", tags=["upload"])
-UPLOAD_DIR = Path("./data/uploads")
+UPLOAD_DIR = Path(settings.resolved_upload_dir)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}

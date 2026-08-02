@@ -29,6 +29,35 @@ class Settings(BaseSettings):
     seed_it_admin_username: str = 'it.admin'
     seed_it_admin_password: str = 'Admin123!'
 
+    # ── Deployment-configurable data paths ────────────────────────────────
+    data_dir: str = './data'
+    seed_data_dir: str = './seed_data'
+
+    @property
+    def resolved_database_url(self) -> str:
+        """Database URL derived from data_dir. Explicit DATABASE_URL overrides."""
+        explicit = os.getenv('DATABASE_URL', '')
+        if explicit:
+            return explicit
+        if self.database_url and self.database_url != 'sqlite:///./data/policypilot.db':
+            return self.database_url
+        return f'sqlite:///{self.data_dir}/policypilot.db'
+
+    @property
+    def resolved_vector_store_path(self) -> str:
+        """FAISS index directory derived from data_dir."""
+        explicit = os.getenv('VECTOR_STORE_PATH', '')
+        if explicit:
+            return explicit
+        if self.vector_store_path and self.vector_store_path != './data/faiss_index':
+            return self.vector_store_path
+        return f'{self.data_dir}/faiss_index'
+
+    @property
+    def resolved_upload_dir(self) -> str:
+        """Upload directory derived from data_dir."""
+        return f'{self.data_dir}/uploads'
+
     @property
     def api_key(self) -> str:
         if self.groq_api_key:
@@ -45,4 +74,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Ensure data directories exist at import time
+Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
+Path(settings.resolved_upload_dir).mkdir(parents=True, exist_ok=True)
+Path(settings.resolved_vector_store_path).mkdir(parents=True, exist_ok=True)
 
