@@ -15,7 +15,7 @@ python-dotenv==1.2.2
 
 # AI / LLM
 groq==1.6.0
-fastembed==0.3.3
+fastembed==0.8.0
 langchain-text-splitters==1.1.2
 
 # Vector search
