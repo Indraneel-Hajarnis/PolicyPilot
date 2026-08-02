@@ -28,5 +28,8 @@ RUN mkdir -p /app/data/uploads /app/data/faiss_index && \
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
