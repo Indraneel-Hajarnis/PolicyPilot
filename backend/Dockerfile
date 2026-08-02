@@ -14,14 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code + seed data
 COPY . ./
 
-# Pre-download the embedding model during build (~90MB)
+# Pre-download the lightweight fastembed ONNX model during build
 # Avoids cold-start model download in production
-ENV HF_HOME=/app/data/huggingface
-RUN mkdir -p /app/data/huggingface && \
-    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
-
-# Now that it is cached, force offline mode for the runtime container
-ENV HF_HUB_OFFLINE=1
+ENV FASTEMBED_CACHE_PATH=/app/data/fastembed
+RUN mkdir -p /app/data/fastembed && \
+    python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Pre-compute FAISS index + SQLite DB from seed_data/ during build
 # This means the Docker image ships with all data ready — instant cold starts
