@@ -31,6 +31,16 @@ def initialize_data() -> None:
             "FAISS index found at %s — loading pre-computed data",
             faiss_index_file,
         )
+        
+        # Eager load heavy ML models during startup so the first API request doesn't timeout
+        try:
+            logger.info("Eagerly loading Embedder and VectorStore...")
+            from app.services.rag_engine import _get_embedder, _get_vector_store
+            _get_embedder()
+            _get_vector_store()
+        except Exception as exc:
+            logger.warning("Failed to eager load models: %s", exc)
+            
         return
 
     logger.info("No FAISS index found — seeding from bundled documents...")
