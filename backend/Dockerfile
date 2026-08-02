@@ -17,9 +17,11 @@ COPY . ./
 # Pre-download the embedding model during build (~90MB)
 # Avoids cold-start model download in production
 ENV HF_HOME=/app/data/huggingface
-ENV HF_HUB_OFFLINE=1
 RUN mkdir -p /app/data/huggingface && \
     python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
+# Now that it is cached, force offline mode for the runtime container
+ENV HF_HUB_OFFLINE=1
 
 # Pre-compute FAISS index + SQLite DB from seed_data/ during build
 # This means the Docker image ships with all data ready — instant cold starts
