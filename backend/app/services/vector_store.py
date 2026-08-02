@@ -37,16 +37,43 @@ class VectorStore:
         self.id_map.extend(metadatas)
         self._save()
 
+    def delete(self, document_id: int) -> int:
+        """Remove all chunks associated with document_id and rebuild FAISS index."""
+        if self.index is None or self.index.ntotal == 0 or not self.id_map:
+            return 0
+
+        dim = self.index.d
+        kept_vectors = []
+        kept_metadatas = []
+        removed_count = 0
+
+        for i, meta in enumerate(self.id_map):
+            if meta.get("doc_id") == document_id:
+                removed_count += 1
+            else:
+                try:
+                    vec = self.index.reconstruct(i)
+                    kept_vectors.append(vec)
+                except Exception:
+                    pass
+                kept_metadatas.append(meta)
+
+        if removed_count == 0:
+            return 0
+
+        new_index = faiss.IndexFlatL2(dim)
+        if kept_vectors:
+            vectors_np = np.array(kept_vectors, dtype="float32")
+            new_index.add(vectors_np)
+
+        self.index = new_index
+        self.id_map = kept_metadatas
+        self._save()
+        return removed_count
+
     def search(self, embedding, top_k=5, document_id=None):
         """
         Search the index.
-
-        IndexFlatL2 has no native metadata filtering, so a plain top_k search
-        is done globally across ALL documents' chunks. If document_id is
-        provided, we over-fetch (search the whole index) and filter down to
-        that document AFTER retrieval, then truncate to top_k. Without this,
-        scoping to one document could return zero results whenever that
-        document's real matches weren't already inside a small global top_k.
         """
         if self.index is None or self.index.ntotal == 0:
             return []
@@ -57,17 +84,14 @@ class VectorStore:
         distances, indices = self.index.search(vector, fetch_k)
         results = []
         for idx, dist in zip(indices[0], distances[0]):
-            if idx < 0:
+            if idx < 0 or idx >= len(self.id_map):
                 continue
             meta = self.id_map[int(idx)]
             if document_id and meta.get("doc_id") != document_id:
                 continue
-            results.append({
-                "doc_id": meta.get("doc_id"),
-                "chunk_index": meta.get("chunk_index"),
-                "text": meta.get("text"),
-                "distance": float(dist),
-            })
+            item = dict(meta)
+            item["distance"] = float(dist)
+            results.append(item)
             if len(results) >= top_k:
                 break
         return results
@@ -75,4 +99,4 @@ class VectorStore:
     def _save(self):
         faiss.write_index(self.index, str(self.index_file))
         with self.id_map_file.open("wb") as handle:
-            pickle.dump(self.id_map, handle)
+            pickle.dump(self.id_map, handle)

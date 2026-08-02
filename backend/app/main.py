@@ -1,9 +1,10 @@
-# pyrefly: ignore [missing-import]
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_analytics import router as analytics_router
+from app.api.routes_auth import router as auth_router
 from app.api.routes_chat import router as chat_router
 from app.api.routes_compare import router as compare_router
 from app.api.routes_documents import router as documents_router
@@ -13,10 +14,26 @@ from app.api.routes_repository import router as repository_router
 from app.api.routes_summary import router as summary_router
 from app.api.routes_upload import router as upload_router
 from app.config import settings
-import threading
-from app.db.database import init_db
+from app.db.database import SessionLocal, init_db
+from app.services.auth import ensure_default_users
+from app.services.seed_repository import seed_central_repository
 
-app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        ensure_default_users()
+        db = SessionLocal()
+        try:
+            seed_central_repository(db)
+        finally:
+            db.close()
+    except Exception as exc:
+        print(f"Startup initialization warning: {exc}")
+    yield
+
+
+app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +44,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
 app.include_router(query_router, prefix="/api")
 app.include_router(summary_router, prefix="/api")
@@ -37,19 +55,6 @@ app.include_router(compare_router, prefix="/api")
 app.include_router(repository_router, prefix="/api")
 
 init_db()
-
-
-@app.on_event("startup")
-def prewarm_models():
-    """Background pre-warm for SentenceTransformer embedder & FAISS store."""
-    def _warm():
-        try:
-            from app.services.rag_engine import _get_embedder, _get_vector_store
-            _get_embedder()
-            _get_vector_store()
-        except Exception:
-            pass
-    threading.Thread(target=_warm, daemon=True).start()
 
 
 @app.get("/")
