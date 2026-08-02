@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ''
     model_name: str = 'llama-3.3-70b-versatile'
     vector_store_path: str = './data/faiss_index'
-    embedding_model_name: str = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+    embedding_model_name: str = 'sentence-transformers/all-MiniLM-L6-v2'
     auth_secret: str = 'change-me-in-production'
     auth_token_ttl_minutes: int = 480
     similarity_threshold: float = 0.28

@@ -14,9 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code + seed data
 COPY . ./
 
-# Pre-download the embedding model during build (~120MB)
+# Pre-download the embedding model during build (~90MB)
 # Avoids cold-start model download in production
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
+ENV HF_HOME=/app/data/huggingface
+RUN mkdir -p /app/data/huggingface && \
+    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Pre-compute FAISS index + SQLite DB from seed_data/ during build
 # This means the Docker image ships with all data ready — instant cold starts
